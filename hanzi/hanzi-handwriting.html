@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>汉字 | Handwriting Recognition - Edukultur AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered Chinese character (Hanzi) handwriting recognition for interactive learning" />
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      /* Dark Theme Colors (Default) */
+      --color-bg-primary: #0a0a0f;
+      --color-bg-secondary: #13131a;
+      --color-bg-surface: rgba(255, 255, 255, 0.05);
+      --color-text-primary: #ffffff;
+      --color-text-secondary: #a0a0b0;
+      --color-text-muted: #6b7280;
+      --color-accent-primary: #6366f1;
+      --color-accent-secondary: #06b6d4;
+      --color-success: #10b981;
+      
+      /* Gradients */
+      --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-cta: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+      --gradient-text: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+      
+      /* Typography */
+      --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      
+      /* Shadows */
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
+      --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Light Theme */
+    [data-theme="light"] {
+      --color-bg-primary: #ffffff;
+      --color-bg-secondary: #f8f9fa;
+      --color-bg-surface: rgba(0, 0, 0, 0.03);
+      --color-text-primary: #1a1a1f;
+      --color-text-secondary: #4a5568;
+      --color-text-muted: #9ca3af;
+      
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+      --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.2);
+    }
+    
+    body {
+      font-family: var(--font-body);
+      background: var(--color-bg-primary);
+      color: var(--color-text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* === Header === */
+    .demo-header {
+      background: var(--color-bg-secondary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+    }
+
+    .demo-header-content {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--color-bg-surface);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.5rem;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: all 0.3s ease;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--color-text-primary);
+      transform: translateX(-2px);
+    }
+
+    .demo-title {
+      font-family: var(--font-heading);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .main-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      min-height: calc(100vh - 120px);
+    }
+    
+    .container {
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #1d1d1f;
+      margin-bottom: 8px;
+      font-size: 28px;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #6e6e73;
+      margin-bottom: 40px;
+      font-size: 13px;
+      font-weight: 300;
+    }
+    
+    .text-display-wrapper {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      margin-bottom: 20px;
+    }
+    
+    .text-display-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .text-display-title {
+      color: #6e6e73;
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    
+    .btn-clear-text {
+      padding: 8px 16px;
+      border: 1px solid #d2d2d7;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: white;
+      color: #1d1d1f;
+    }
+    
+    .btn-clear-text:hover {
+      background: #f5f5f7;
+      border-color: #1d1d1f;
+    }
+    
+    .text-display {
+      min-height: 60px;
+      padding: 15px;
+      background: #f5f5f7;
+      border-radius: 12px;
+      font-size: 32px;
+      line-height: 1.5;
+      word-wrap: break-word;
+      color: #1d1d1f;
+    }
+    
+    .text-display.empty {
+      color: #86868b;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .drawing-wrapper {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      margin-bottom: 20px;
+    }
+    
+    .drawingBoard {
+      width: 100%;
+      height: 320px;
+      border: 2px solid #d2d2d7;
+      border-radius: 12px;
+      cursor: crosshair;
+      background: #fafafa;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.3s ease;
+    }
+    
+    .drawingBoard:hover {
+      border-color: #86868b;
+    }
+    
+    .drawingBoard.loading {
+      background: #f5f5f7;
+    }
+    
+    .drawingBoard span {
+      display: none;
+      color: #86868b;
+      font-size: 14px;
+      font-weight: 300;
+    }
+    
+    .drawingBoard.loading span {
+      display: block;
+    }
+    
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: white;
+      color: #1d1d1f;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn:hover {
+      background: #f5f5f7;
+      border-color: #1d1d1f;
+    }
+    
+    .results-wrapper {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .results-title {
+      color: #6e6e73;
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .predictions {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      min-height: 120px;
+    }
+    
+    .prediction {
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      padding: 15px;
+      border-radius: 12px;
+      background: #f5f5f7;
+      border: 2px solid #d2d2d7;
+      flex: 1;
+      max-width: 140px;
+    }
+    
+    .prediction:hover {
+      transform: translateY(-5px);
+      background: #1d1d1f;
+      border-color: #1d1d1f;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .prediction:hover .char {
+      color: white;
+    }
+    
+    .prediction:hover .rank {
+      color: #d2d2d7;
+    }
+    
+    .prediction .rank {
+      font-size: 11px;
+      color: #86868b;
+      margin-bottom: 8px;
+      font-weight: 400;
+      letter-spacing: 0.5px;
+    }
+    
+    .prediction .char {
+      font-size: 56px;
+      color: #1d1d1f;
+      transition: color 0.3s ease;
+      font-weight: 300;
+    }
+    
+    .prediction.first .rank {
+      color: #1d1d1f;
+      font-weight: 500;
+    }
+    
+    .prediction.first {
+      background: white;
+      border-color: #1d1d1f;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #86868b;
+      font-style: italic;
+      font-size: 14px;
+      font-weight: 300;
+    }
+    
+    .notification {
+      position: fixed;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1d1d1f;
+      color: white;
+      padding: 16px 32px;
+      border-radius: 50px;
+      font-size: 14px;
+      font-weight: 400;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .notification.show {
+      opacity: 1;
+    }
+    
+    @media (max-width: 600px) {
+      .container {
+        padding: 0;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+      
+      .drawing-wrapper,
+      .results-wrapper {
+        padding: 20px;
+      }
+      
+      .drawingBoard {
+        height: 280px;
+      }
+      
+      .predictions {
+        gap: 12px;
+      }
+      
+      .prediction .char {
+        font-size: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="demo-header">
+    <div class="demo-header-content">
+      <a href="../index.html" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Back to Homepage
+      </a>
+      <h1 class="demo-title">Hanzi Writing Demo</h1>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <div class="container">
+      <h1>汉字识别</h1>
+      <p class="subtitle">Handwriting Recognition</p>
+    
+    <div class="text-display-wrapper">
+      <div class="text-display-header">
+        <div class="text-display-title">Your Text</div>
+        <button class="btn-clear-text">Clear Text</button>
+      </div>
+      <div class="text-display empty">Select characters below to start typing</div>
+    </div>
+    
+    <div class="drawing-wrapper">
+      <div class="drawingBoard loading">
+        <span>Loading...</span>
+      </div>
+      <div class="controls">
+        <button class="btn btn-undo">Undo</button>
+        <button class="btn btn-clear">Clear</button>
+      </div>
+    </div>
+    
+    <div class="results-wrapper">
+      <div class="results-title">Top Predictions</div>
+      <div class="predictions">
+        <div class="empty-state">Draw to begin</div>
+      </div>
+    </div>
+    </div>
+  </div>
+  
+  <div class="notification" id="notification"></div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="hanzilookup.min.js"></script>
+  <script>
+    var app = (function () {
+      var drawingBoard;
+      var isLoaded = false;
+      var selectedText = "";
+
+      $(document).ready(function () {
+        HanziLookup.init("mmah", "mmah.json", fileLoaded);
+      });
+
+      function fileLoaded(success) {
+        if (!success) {
+          $(".drawingBoard span").text("Failed to load");
+          return;
+        }
+        
+        isLoaded = true;
+        $(".drawingBoard").removeClass("loading");
+        drawingBoard = HanziLookup.DrawingBoard($(".drawingBoard").first(), lookup);
+        
+        $(".btn-clear").click(function () {
+          drawingBoard.clearCanvas();
+          drawingBoard.redraw();
+          clearResults();
+        });
+        
+        $(".btn-undo").click(function () {
+          drawingBoard.undoStroke();
+          drawingBoard.redraw();
+          lookup();
+        });
+        
+        $(".btn-clear-text").click(function () {
+          clearTextDisplay();
+        });
+      }
+
+      function lookup() {
+        if (!isLoaded) return;
+        
+        var analyzedChar = new HanziLookup.AnalyzedCharacter(drawingBoard.cloneStrokes());
+        var matcher = new HanziLookup.Matcher("mmah");
+        matcher.match(analyzedChar, 3, function(matches) {
+          displayResults(matches);
+        });
+      }
+
+      function displayResults(matches) {
+        var predictionsDiv = $(".predictions");
+        predictionsDiv.empty();
+        
+        if (matches.length === 0) {
+          predictionsDiv.append('<div class="empty-state">No match found</div>');
+          return;
+        }
+        
+        for (var i = 0; i < Math.min(3, matches.length); i++) {
+          var char = matches[i].character;
+          var isFirst = i === 0;
+          
+          var predictionDiv = $("<div></div>")
+            .addClass("prediction")
+            .addClass(isFirst ? "first" : "")
+            .html('<div class="rank">' + (i === 0 ? 'BEST' : '#' + (i + 1)) + '</div><div class="char">' + char + '</div>');
+          
+          predictionDiv.click((function(character) {
+            return function() {
+              addCharacterToText(character);
+            };
+          })(char));
+          
+          predictionsDiv.append(predictionDiv);
+        }
+      }
+
+      function clearResults() {
+        $(".predictions").html('<div class="empty-state">Draw to begin</div>');
+      }
+      
+      function addCharacterToText(char) {
+        selectedText += char;
+        updateTextDisplay();
+        
+        // Clear the drawing board after selecting
+        drawingBoard.clearCanvas();
+        drawingBoard.redraw();
+        clearResults();
+        
+        // Show notification
+        var notification = $("#notification");
+        notification.text("Added " + char).addClass("show");
+        
+        setTimeout(function() {
+          notification.removeClass("show");
+        }, 1000);
+      }
+      
+      function updateTextDisplay() {
+        var textDisplay = $(".text-display");
+        
+        if (selectedText.length === 0) {
+          textDisplay.addClass("empty").text("Select characters below to start typing");
+        } else {
+          textDisplay.removeClass("empty").text(selectedText);
+        }
+      }
+      
+      function clearTextDisplay() {
+        selectedText = "";
+        updateTextDisplay();
+        
+        var notification = $("#notification");
+        notification.text("Text cleared").addClass("show");
+        
+        setTimeout(function() {
+          notification.removeClass("show");
+        }, 1000);
+      }
+    })();
+  </script>
+</body>
+</html>
