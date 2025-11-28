@@ -266,6 +266,19 @@
       border-color: #1d1d1f;
     }
     
+    .btn-submit {
+      background: var(--gradient-cta);
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+    
+    .btn-submit:hover {
+      background: var(--gradient-cta);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-glow);
+    }
+    
     .results-wrapper {
       background: white;
       border-radius: 16px;
@@ -289,6 +302,11 @@
       align-items: center;
       gap: 20px;
       min-height: 120px;
+    }
+    
+    .predictions .prediction {
+      max-width: 200px;
+      min-width: 150px;
     }
     
     .prediction {
@@ -434,13 +452,14 @@
       <div class="controls">
         <button class="btn btn-undo">Undo</button>
         <button class="btn btn-clear">Clear</button>
+        <button class="btn btn-submit" id="submitBtn">Submit</button>
       </div>
     </div>
     
     <div class="results-wrapper">
-      <div class="results-title">Top Predictions</div>
+      <div class="results-title">Recognition Result</div>
       <div class="predictions">
-        <div class="empty-state">Draw to begin</div>
+        <div class="empty-state">Draw a character and click Submit</div>
       </div>
     </div>
     </div>
@@ -468,7 +487,9 @@
         
         isLoaded = true;
         $(".drawingBoard").removeClass("loading");
-        drawingBoard = HanziLookup.DrawingBoard($(".drawingBoard").first(), lookup);
+        drawingBoard = HanziLookup.DrawingBoard($(".drawingBoard").first(), function() {
+          // Don't auto-lookup, wait for submit button
+        });
         
         $(".btn-clear").click(function () {
           drawingBoard.clearCanvas();
@@ -479,11 +500,15 @@
         $(".btn-undo").click(function () {
           drawingBoard.undoStroke();
           drawingBoard.redraw();
-          lookup();
+          clearResults(); // Don't auto-lookup on undo
         });
         
         $(".btn-clear-text").click(function () {
           clearTextDisplay();
+        });
+        
+        $("#submitBtn").click(function () {
+          lookup();
         });
       }
 
@@ -506,27 +531,22 @@
           return;
         }
         
-        for (var i = 0; i < Math.min(3, matches.length); i++) {
-          var char = matches[i].character;
-          var isFirst = i === 0;
-          
-          var predictionDiv = $("<div></div>")
-            .addClass("prediction")
-            .addClass(isFirst ? "first" : "")
-            .html('<div class="rank">' + (i === 0 ? 'BEST' : '#' + (i + 1)) + '</div><div class="char">' + char + '</div>');
-          
-          predictionDiv.click((function(character) {
-            return function() {
-              addCharacterToText(character);
-            };
-          })(char));
-          
-          predictionsDiv.append(predictionDiv);
-        }
+        // Show only the best match (first one)
+        var char = matches[0].character;
+        
+        var predictionDiv = $("<div></div>")
+          .addClass("prediction first")
+          .html('<div class="rank">BEST MATCH</div><div class="char">' + char + '</div>');
+        
+        predictionDiv.click(function() {
+          addCharacterToText(char);
+        });
+        
+        predictionsDiv.append(predictionDiv);
       }
 
       function clearResults() {
-        $(".predictions").html('<div class="empty-state">Draw to begin</div>');
+        $(".predictions").html('<div class="empty-state">Draw a character and click Submit</div>');
       }
       
       function addCharacterToText(char) {
