@@ -703,49 +703,23 @@
         
         <div class="main-content">
             <div class="question-section">
-                <div class="question" id="question">Bahasa Inggris dari "bertanya":</div>
-                <div class="answer" id="answer">ASK</div>
-                <div class="letters-container" id="lettersContainer"></div>
-                <div class="progress" id="progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-                    </div>
+                <div class="question" id="question">Say the letter:</div>
+                <div class="answer" id="answer">A</div>
+                <div class="progress" id="progress">Letter 1 of 130 (Round 1/5)</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
                 </div>
             </div>
             
             <div class="controls-section">
-                <div class="utility-controls">
-                    <button class="secondary-btn" onclick="clearAll()">🗑️ Clear All</button>
-                    <button class="secondary-btn" onclick="undoLast()">↩️ Undo</button>
-                    <button class="secondary-btn" onclick="showHint()">💡 Hint</button>
-                    <button class="success-btn" onclick="checkSpelling()">✓ Check</button>
-                </div>
-                
                 <div class="controls">
                     <button class="primary-btn" id="startBtn" onclick="startListening()">🎤 Start Listening</button>
                     <button class="danger-btn" id="stopBtn" onclick="stopListening()" style="display:none;">⏹️ Stop</button>
-                    <button class="secondary-btn" id="newWordBtn" onclick="getNewWord()">🔄 New Word</button>
+                    <button class="secondary-btn" onclick="skipLetter()">⏭️ Skip Letter</button>
+                    <button class="secondary-btn" onclick="repeatLetter()">🔄 Repeat</button>
                 </div>
                 
                 <div class="status not-listening" id="status">Click "Start Listening" to begin</div>
-                
-                <div class="letter-suggestions" id="letterSuggestions" style="display:none;">
-                    <div class="prediction-header" id="predictionHeader"></div>
-                    <!-- Letter suggestion buttons will be added here dynamically -->
-                </div>
-                
-                <!-- Permanent Letter Shortcuts -->
-                <div class="permanent-letters">
-                    <h4>🎯 Quick Letter Access (Click to replace selected box)</h4>
-                    <div class="permanent-letter-grid">
-                        <button class="permanent-letter-btn group-bdpt" onclick="insertPermanentLetter('B')" title="B - Often confused with D, P, T">B</button>
-                        <button class="permanent-letter-btn group-bdpt" onclick="insertPermanentLetter('D')" title="D - Often confused with B, P, T">D</button>
-                        <button class="permanent-letter-btn group-bdpt" onclick="insertPermanentLetter('P')" title="P - Often confused with B, D, T">P</button>
-                        <button class="permanent-letter-btn group-bdpt" onclick="insertPermanentLetter('T')" title="T - Often confused with B, D, P">T</button>
-                        <button class="permanent-letter-btn group-mn" onclick="insertPermanentLetter('M')" title="M - Often confused with N">M</button>
-                        <button class="permanent-letter-btn group-mn" onclick="insertPermanentLetter('N')" title="N - Often confused with M">N</button>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -753,12 +727,12 @@
             <h3>📊 Practice Statistics</h3>
             <div class="stats-grid">
                 <div class="stat-item">
-                    <div class="stat-value" id="wordsCompleted">0</div>
-                    <div class="stat-label">Words Completed</div>
+                    <div class="stat-value" id="lettersCompleted">0</div>
+                    <div class="stat-label">Letters Completed</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value" id="correctLetters">0</div>
-                    <div class="stat-label">Correct Letters</div>
+                    <div class="stat-value" id="correctPronunciations">0</div>
+                    <div class="stat-label">Correct Pronunciations</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="accuracy">100%</div>
@@ -774,14 +748,13 @@
             <div class="instructions">
                 <h3>📋 How to Use</h3>
                 <ul>
-                    <li>Click individual letter boxes to select them for editing</li>
-                    <li>Use voice recognition for hands-free spelling</li>
-                    <li>Say letters individually: "A", "S", "K" (not "ASK")</li>
-                    <li>Use the permanent letter buttons (B,D,P,T,M,N) for quick access</li>
-                    <li>Orange buttons (B,D,P,T) and purple buttons (M,N) for commonly confused letters</li>
-                    <li>Use utility buttons to clear, undo, or get hints</li>
-                    <li>Check your spelling accuracy with the Check button</li>
-                    <li>Practice with different words using New Word</li>
+                    <li>Click "Start Listening" to begin voice recognition</li>
+                    <li>Say each letter clearly when prompted (e.g., "A", "B", "C")</li>
+                    <li>You can also use phonetic words: "A for Apple", "B for Bravo", etc.</li>
+                    <li>Practice all 26 letters, 5 times each (130 total)</li>
+                    <li>Skip difficult letters and come back to them later</li>
+                    <li>Repeat a letter if you want to practice it again</li>
+                    <li>Track your accuracy and maintain your streak</li>
                 </ul>
             </div>
 
@@ -826,36 +799,34 @@
     </div>
 
     <script>
-        // Sample word database
-        const wordDatabase = [
-            { question: 'Bahasa Inggris dari "bertanya"', answer: 'ASK' },
-            { question: 'Bahasa Inggris dari "kucing"', answer: 'CAT' },
-            { question: 'Bahasa Inggris dari "anjing"', answer: 'DOG' },
-            { question: 'Bahasa Inggris dari "rumah"', answer: 'HOME' },
-            { question: 'Bahasa Inggris dari "buku"', answer: 'BOOK' },
-            { question: 'Bahasa Inggris dari "air"', answer: 'WATER' },
-            { question: 'Bahasa Inggris dari "makan"', answer: 'EAT' },
-            { question: 'Bahasa Inggris dari "tidur"', answer: 'SLEEP' },
-            { question: 'Bahasa Inggris dari "berlari"', answer: 'RUN' },
-            { question: 'Bahasa Inggris dari "menulis"', answer: 'WRITE' }
-        ];
+        // Alphabet practice database: A-Z, 5 times each = 130 total
+        const alphabetSequence = [];
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        for (let round = 1; round <= 5; round++) {
+            for (let i = 0; i < alphabet.length; i++) {
+                alphabetSequence.push({
+                    letter: alphabet[i],
+                    round: round,
+                    position: alphabetSequence.length + 1
+                });
+            }
+        }
 
         let recognition;
         let isListening = false;
-        let currentWord = wordDatabase[0];
-        let currentLetterIndex = 0;
-        let spelledLetters = [];
+        let currentIndex = 0;
+        let currentLetter = alphabetSequence[0];
+        let userInput = '';
         let microphonePermissionGranted = false;
         let awaitingLetterChoice = false;
         let suggestedLetters = [];
-        let selectedBoxIndex = -1; // -1 means no box selected, use currentLetterIndex
         let lastHeardInput = '';
         
         // Statistics
         let stats = {
-            wordsCompleted: 0,
-            correctLetters: 0,
-            totalLetters: 0,
+            lettersCompleted: 0,
+            correctPronunciations: 0,
+            totalAttempts: 0,
             currentStreak: 0
         };
         
@@ -1057,7 +1028,7 @@
             'C': ['C', 'SEE', 'SEA', 'CEE'],
             'D': ['D', 'DEE', 'DEH'],
             'E': ['E', 'EE', 'EH'],
-            'F': ['F', 'EF', 'EFF', 'FEE'],
+            'F': ['F', 'EF', 'EFF'],
             'G': ['G', 'GEE', 'JEE', 'GEH'],
             'H': ['H', 'AITCH', 'HAITCH', 'ETCH'],
             'I': ['I', 'EYE', 'AYE', 'EE'],
@@ -1073,7 +1044,7 @@
             'S': ['S', 'ESS', 'SEH', 'ASS'],
             'T': ['T', 'TEE', 'TEH'],
             'U': ['U', 'YOU', 'YOO'],
-            'V': ['V', 'VEE', 'VEH'],
+            'V': ['V', 'VEE', 'VEH', 'FEE'],
             'W': ['W', 'DOUBLE U', 'DOUBLE-U', 'WEH'],
             'X': ['X', 'EX', 'EKS'],
             'Y': ['Y', 'WHY', 'WYE'],
@@ -1191,13 +1162,6 @@
             return possibleLetters; // Return all suggestions
         }
         
-        function getCurrentExpectedLetter() {
-            const targetIndex = selectedBoxIndex >= 0 ? selectedBoxIndex : currentLetterIndex;
-            if (targetIndex < currentWord.answer.length) {
-                return currentWord.answer[targetIndex];
-            }
-            return null;
-        }
         
         // Simple Levenshtein distance for fuzzy matching
         function levenshteinDistance(str1, str2) {
@@ -1224,18 +1188,6 @@
             return matrix[str2.length][str1.length];
         }
         
-        function isSpacedLetterSequence(input) {
-            // Check if input is spaced letters like "W R I T E" or "A S K"
-            const parts = input.split(' ').filter(part => part.length > 0);
-            if (parts.length > 1) {
-                // Check if all parts are single letters or phonetic equivalents
-                return parts.every(part => {
-                    const normalizedPart = normalizeRepeatedLetters(part);
-                    return findLetterFromPhonetic(normalizedPart) !== null;
-                });
-            }
-            return false;
-        }
         
         function normalizeRepeatedLetters(input) {
             // Handle repeated letters like "TTT" -> "T", "AAA" -> "A"
@@ -1274,55 +1226,17 @@
                 return;
             }
             
-            // Handle spaced letter sequences like "W R I T E"
-            if (isSpacedLetterSequence(cleanInput)) {
-                const parts = cleanInput.split(' ').filter(part => part.length > 0);
-                const letters = parts.map(part => {
-                    const normalizedPart = normalizeRepeatedLetters(part);
-                    return findLetterFromPhonetic(normalizedPart);
-                });
-                
-                updateStatus('success', `🎯 Detected letter sequence: ${letters.join(' ')}`);
-                
-                // Process each letter in sequence
-                for (let i = 0; i < letters.length; i++) {
-                    const letter = letters[i];
-                    let targetIndex;
-                    
-                    if (selectedBoxIndex >= 0 && i === 0) {
-                        // First letter goes to selected box
-                        targetIndex = selectedBoxIndex;
-                        selectedBoxIndex = -1; // Clear selection
-                    } else {
-                        // Subsequent letters go sequentially
-                        targetIndex = currentLetterIndex;
-                        currentLetterIndex++;
-                    }
-                    
-                    // Extend array if needed
-                    while (spelledLetters.length <= targetIndex) {
-                        spelledLetters.push('');
-                    }
-                    
-                    spelledLetters[targetIndex] = letter;
-                    updateProgress();
-                }
-                
-                checkWordCompletion();
-                return;
-            }
-            
             // Try to find a single letter from phonetic input
             const letter = findLetterFromPhonetic(cleanInput);
             
             if (letter) {
-                // Direct match - add the letter immediately
-                selectPredictedLetter(letter, cleanInput);
+                // Direct match - check if it's correct
+                checkLetterPronunciation(letter, cleanInput);
             } else {
-                // No exact match - show 2 predictions
-                if (cleanInput.length > 3 && !isSpacedLetterSequence(cleanInput)) {
+                // No exact match - show possibilities
+                if (cleanInput.length > 3) {
                     // Reject complete words and sentences
-                    updateStatus('error', `❌ Please say individual letters only, not complete words or sentences`);
+                    updateStatus('error', `❌ Please say individual letters only, not complete words`);
                 } else if (cleanInput.length > 0) {
                     // Show predictions for any unclear input
                     showLetterPredictions(cleanInput);
@@ -1367,449 +1281,116 @@
         }
 
         function updateProgress() {
-            const container = document.getElementById('lettersContainer');
-            container.innerHTML = '';
-            
-            for (let i = 0; i < currentWord.answer.length; i++) {
-                const letterBox = document.createElement('div');
-                letterBox.className = 'letter-box';
-                letterBox.setAttribute('data-index', i);
-                
-                // Add delete button
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.innerHTML = '×';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deleteLetter(i);
-                };
-                letterBox.appendChild(deleteBtn);
-                
-                if (i < spelledLetters.length) {
-                    letterBox.classList.add('filled');
-                    letterBox.textContent = spelledLetters[i];
-                    
-                    // Add correct/incorrect styling
-                    if (spelledLetters[i] === currentWord.answer[i]) {
-                        letterBox.classList.add('correct');
-                    } else {
-                        letterBox.classList.add('incorrect');
-                    }
-                } else if (i === currentLetterIndex && selectedBoxIndex === -1) {
-                    letterBox.classList.add('current');
-                }
-                
-                // Add selected styling if this box is selected
-                if (i === selectedBoxIndex) {
-                    letterBox.classList.add('selected');
-                }
-                
-                // Make clickable for box selection
-                letterBox.onclick = () => selectBox(i);
-                
-                container.appendChild(letterBox);
-            }
+            // Update progress text
+            const progressText = `Letter ${currentIndex + 1} of ${alphabetSequence.length} (Round ${currentLetter.round}/5)`;
+            document.getElementById('progress').textContent = progressText;
             
             // Update progress bar
-            const progressPercent = (spelledLetters.length / currentWord.answer.length) * 100;
+            const progressPercent = ((currentIndex + 1) / alphabetSequence.length) * 100;
             document.getElementById('progressFill').style.width = progressPercent + '%';
+            
+            // Update letter display
+            document.getElementById('answer').textContent = currentLetter.letter;
         }
         
-        function selectBox(index) {
-            // Check if the box already has content and it's part of a group
-            let showGroupPredictions = false;
-            let groupLetters = [];
-            
-            if (index < spelledLetters.length && spelledLetters[index]) {
-                const currentLetter = spelledLetters[index];
-                if (letterToGroup[currentLetter]) {
-                    const groupName = letterToGroup[currentLetter];
-                    groupLetters = letterGroups[groupName];
-                    showGroupPredictions = true;
-                }
-            }
-            
-            // Clear the selected box and set it as target for next input
-            selectedBoxIndex = index;
-            
-            // Clear the content of the selected box if it exists
-            if (index < spelledLetters.length) {
-                spelledLetters[index] = '';
-            }
-            
-            updateProgress();
-            
-            if (showGroupPredictions) {
-                // Show group predictions immediately
-                showGroupPredictions(groupLetters, index + 1);
-                updateStatus('success', `📝 Box ${index + 1} cleared. Choose from predictions above or permanent letters below.`);
-            } else {
-                updateStatus('success', `📝 Box ${index + 1} selected. Use voice input or click permanent letters below.`);
-                
-                // If we have recent predictions, show them again
-                if (lastHeardInput && !awaitingLetterChoice) {
-                    setTimeout(() => showLetterPredictions(lastHeardInput), 100);
-                }
-            }
-        }
-        
-        function deleteLetter(index) {
-            if (index < spelledLetters.length) {
-                const deletedLetter = spelledLetters[index];
-                spelledLetters.splice(index, 1);
-                currentLetterIndex = Math.max(0, Math.min(currentLetterIndex - 1, spelledLetters.length));
-                updateProgress();
-                updateStatus('success', `Letter "${deletedLetter}" removed from position ${index + 1}`);
-            }
-        }
-        
-        function clearAll() {
-            spelledLetters = [];
-            currentLetterIndex = 0;
-            selectedBoxIndex = -1;
-            lastHeardInput = '';
-            updateProgress();
-            hideLetterSuggestions();
-            updateStatus('success', 'All letters cleared');
-        }
-        
-        function undoLast() {
-            if (spelledLetters.length > 0) {
-                const lastLetter = spelledLetters.pop();
-                currentLetterIndex = Math.max(0, currentLetterIndex - 1);
-                updateProgress();
-                updateStatus('success', `Removed last letter "${lastLetter}"`);
-            } else {
-                updateStatus('error', 'Nothing to undo');
-            }
-        }
-        
-        function showHint() {
-            if (currentLetterIndex < currentWord.answer.length) {
-                const nextLetter = currentWord.answer[currentLetterIndex];
-                updateStatus('success', `💡 Next letter is: "${nextLetter}"`);
-            } else {
-                updateStatus('success', '💡 Word is complete!');
-            }
-        }
-        
-        function checkSpelling() {
-            const userSpelling = spelledLetters.join('');
-            const correctSpelling = currentWord.answer;
-            
-            let correctCount = 0;
-            for (let i = 0; i < Math.max(userSpelling.length, correctSpelling.length); i++) {
-                if (userSpelling[i] === correctSpelling[i]) {
-                    correctCount++;
-                }
-            }
-            
-            const accuracy = correctSpelling.length > 0 ? (correctCount / correctSpelling.length) * 100 : 0;
-            
-            if (userSpelling === correctSpelling) {
-                updateStatus('success', `🎉 Perfect! "${userSpelling}" is correct!`);
-                stats.currentStreak++;
-            } else {
-                updateStatus('error', `❌ "${userSpelling}" should be "${correctSpelling}". Accuracy: ${accuracy.toFixed(0)}%`);
-                stats.currentStreak = 0;
-            }
+        function checkLetterPronunciation(spokenLetter, heardAs) {
+            const expectedLetter = currentLetter.letter;
+            const isCorrect = spokenLetter === expectedLetter;
             
             // Update statistics
-            stats.correctLetters += correctCount;
-            stats.totalLetters += correctSpelling.length;
+            stats.totalAttempts++;
             
-            if (spelledLetters.length === correctSpelling.length) {
-                stats.wordsCompleted++;
+            if (isCorrect) {
+                stats.correctPronunciations++;
+                stats.currentStreak++;
+                updateStatus('success', `✅ Perfect! You said "${spokenLetter}" correctly (heard: "${heardAs}")`);
+                
+                // Move to next letter after a short delay
+                setTimeout(() => {
+                    nextLetter();
+                }, 1500);
+            } else {
+                stats.currentStreak = 0;
+                updateStatus('error', `❌ You said "${spokenLetter}" but the letter is "${expectedLetter}". Try again! (heard: "${heardAs}")`);
             }
             
             saveStats();
             updateStatsDisplay();
-            updateProgress();
         }
         
+        function nextLetter() {
+            stats.lettersCompleted++;
+            currentIndex++;
+            
+            if (currentIndex >= alphabetSequence.length) {
+                // Completed all letters!
+                updateStatus('success', '🎉 Congratulations! You completed all 130 letters!');
+                stopListening();
+                saveStats();
+                updateStatsDisplay();
+                return;
+            }
+            
+            currentLetter = alphabetSequence[currentIndex];
+            userInput = '';
+            updateProgress();
+            updateStatus('listening', `🎤 Listening... Say the letter: ${currentLetter.letter}`);
+        }
+        
+        function skipLetter() {
+            updateStatus('success', `⏭️ Skipped letter "${currentLetter.letter}"`);
+            nextLetter();
+        }
+        
+        function repeatLetter() {
+            userInput = '';
+            updateStatus('success', `🔄 Repeating letter "${currentLetter.letter}". Say it again!`);
+        }
+        
+
         function updateStatsDisplay() {
-            document.getElementById('wordsCompleted').textContent = stats.wordsCompleted;
-            document.getElementById('correctLetters').textContent = stats.correctLetters;
+            document.getElementById('lettersCompleted').textContent = stats.lettersCompleted;
+            document.getElementById('correctPronunciations').textContent = stats.correctPronunciations;
             document.getElementById('streak').textContent = stats.currentStreak;
             
-            const accuracy = stats.totalLetters > 0 ? (stats.correctLetters / stats.totalLetters) * 100 : 100;
+            const accuracy = stats.totalAttempts > 0 ? (stats.correctPronunciations / stats.totalAttempts) * 100 : 100;
             document.getElementById('accuracy').textContent = accuracy.toFixed(1) + '%';
         }
-
-        function acceptLetter(letter, heardAs) {
-            spelledLetters.push(letter);
-            currentLetterIndex++;
-            updateProgress();
-            
-            const expectedLetter = currentWord.answer[currentLetterIndex - 1];
-            if (letter === expectedLetter) {
-                updateStatus('success', `✅ Correct! "${letter}" accepted (heard: "${heardAs}")`);
-                stats.correctLetters++;
-            } else {
-                updateStatus('success', `✅ "${letter}" accepted (heard: "${heardAs}"). Expected "${expectedLetter}" but continuing...`);
-            }
-            
-            stats.totalLetters++;
-            
-            // Hide suggestions
-            hideLetterSuggestions();
-            
-            // Check if word is complete
-            if (currentLetterIndex >= currentWord.answer.length) {
-                setTimeout(() => {
-                    const userSpelling = spelledLetters.join('');
-                    const isCorrect = userSpelling === currentWord.answer;
-                    
-                    if (isCorrect) {
-                        stats.wordsCompleted++;
-                        stats.currentStreak++;
-                        updateStatus('success', '🎉 Perfect spelling! Word completed: ' + userSpelling);
-                    } else {
-                        stats.currentStreak = 0;
-                        updateStatus('success', `🎉 Word completed! Your spelling: ${userSpelling} (Expected: ${currentWord.answer})`);
-                    }
-                    
-                    saveStats();
-                    updateStatsDisplay();
-                    stopListening();
-                }, 1000);
-            }
-        }
+        
         
         function showLetterPredictions(heardAs) {
             const predictions = findPossibleLetters(heardAs);
             
-            if (predictions.length === 0) return;
-            
-            // Add expected letter if not already in predictions
-            if (predictions.length > 0) {
-                const expectedLetter = getCurrentExpectedLetter();
-                if (expectedLetter && !predictions.includes(expectedLetter)) {
-                    predictions.unshift(expectedLetter); // Add at the beginning
-                }
+            if (predictions.length === 0) {
+                updateStatus('error', `❌ Could not recognize "${heardAs}". Please try again.`);
+                return;
             }
             
-            // Use all predictions (remove limit)
-            const finalPredictions = predictions;
+            // Add expected letter if not already in predictions
+            const expectedLetter = currentLetter.letter;
+            if (!predictions.includes(expectedLetter)) {
+                predictions.unshift(expectedLetter); // Add at the beginning
+            }
+            
+            // Limit to top 4 predictions
+            const finalPredictions = predictions.slice(0, 4);
             
             awaitingLetterChoice = true;
             suggestedLetters = finalPredictions;
             lastHeardInput = heardAs;
             
-            const container = document.getElementById('letterSuggestions');
-            container.innerHTML = '';
+            updateStatus('success', `🎯 Heard "${heardAs}" - Did you mean: ${finalPredictions.join(', ')}? Say it again or say "${expectedLetter}" clearly.`);
             
-            // Add header with group info if applicable
-            const header = document.createElement('div');
-            header.className = 'prediction-header';
-            const targetBox = selectedBoxIndex >= 0 ? selectedBoxIndex + 1 : currentLetterIndex + 1;
-            
-            // Check if predictions are from a confusion group
-            let groupInfo = '';
-            const hasGroupLetters = finalPredictions.some(letter => letterToGroup[letter]);
-            if (hasGroupLetters) {
-                const bdptCount = finalPredictions.filter(letter => letterGroups.BDPT_GROUP.includes(letter)).length;
-                const mnCount = finalPredictions.filter(letter => letterGroups.MN_GROUP.includes(letter)).length;
-                
-                if (bdptCount > 0 && mnCount > 0) {
-                    groupInfo = ' (Mixed groups)';
-                } else if (bdptCount > 0) {
-                    groupInfo = ' (B/D/P/T group)';
-                } else if (mnCount > 0) {
-                    groupInfo = ' (M/N group)';
-                }
-            }
-            
-            header.textContent = `🎯 Heard "${heardAs}" - Choose letter for box ${targetBox}${groupInfo}:`;
-            container.appendChild(header);
-            
-            // Add prediction buttons
-            finalPredictions.forEach(letter => {
-                const button = document.createElement('button');
-                button.className = 'suggestion-btn';
-                button.textContent = letter;
-                button.onclick = () => selectPredictedLetter(letter, heardAs);
-                container.appendChild(button);
-            });
-            
-            container.style.display = 'block';
-            updateStatus('success', `🎤 Choose one of the predicted letters based on "${heardAs}"`);
-        }
-        
-        function selectPredictedLetter(letter, heardAs) {
-            awaitingLetterChoice = false;
-            
-            const targetIndex = selectedBoxIndex >= 0 ? selectedBoxIndex : currentLetterIndex;
-            
-            // Extend array if needed
-            while (spelledLetters.length <= targetIndex) {
-                spelledLetters.push('');
-            }
-            
-            // Fill the target box
-            spelledLetters[targetIndex] = letter;
-            
-            // Update indices
-            if (selectedBoxIndex >= 0) {
-                // User selected a specific box, don't auto-advance
-                selectedBoxIndex = -1; // Clear selection
-            } else {
-                // Auto-advance to next position
-                currentLetterIndex = Math.max(currentLetterIndex, targetIndex + 1);
-            }
-            
-            updateProgress();
-            hideLetterSuggestions();
-            
-            const expectedLetter = currentWord.answer[targetIndex];
-            if (letter === expectedLetter) {
-                updateStatus('success', `✅ Perfect! "${letter}" is correct (heard: "${heardAs}")`);
-                stats.correctLetters++;
-            } else {
-                updateStatus('success', `📝 "${letter}" added to box ${targetIndex + 1} (heard: "${heardAs}"). Expected "${expectedLetter}"`);
-            }
-            
-            stats.totalLetters++;
-            saveStats();
-            updateStatsDisplay();
-            
-            // Check if word is complete
-            checkWordCompletion();
-        }
-        
-        function checkWordCompletion() {
-            if (spelledLetters.length >= currentWord.answer.length && 
-                spelledLetters.every(letter => letter !== '')) {
-                
-                setTimeout(() => {
-                    const userSpelling = spelledLetters.join('');
-                    const isCorrect = userSpelling === currentWord.answer;
-                    
-                    if (isCorrect) {
-                        stats.wordsCompleted++;
-                        stats.currentStreak++;
-                        updateStatus('success', '🎉 Perfect spelling! Word completed: ' + userSpelling);
-                    } else {
-                        stats.currentStreak = 0;
-                        updateStatus('success', `🎉 Word completed! Your spelling: ${userSpelling} (Expected: ${currentWord.answer})`);
-                    }
-                    
-                    saveStats();
-                    updateStatsDisplay();
-                    stopListening();
-                }, 1000);
-            }
-        }
-        
-        function showGroupPredictions(groupLetters, boxNumber) {
-            awaitingLetterChoice = true;
-            suggestedLetters = groupLetters;
-            
-            const container = document.getElementById('letterSuggestions');
-            container.innerHTML = '';
-            
-            // Add header for group
-            const header = document.createElement('div');
-            header.className = 'prediction-header';
-            
-            let groupName = '';
-            if (groupLetters.every(letter => letterGroups.BDPT_GROUP.includes(letter))) {
-                groupName = 'B/D/P/T group';
-            } else if (groupLetters.every(letter => letterGroups.MN_GROUP.includes(letter))) {
-                groupName = 'M/N group';
-            }
-            
-            header.textContent = `🔄 Choose replacement for box ${boxNumber} (${groupName}):`;
-            container.appendChild(header);
-            
-            // Add all group letters as buttons
-            groupLetters.forEach(letter => {
-                const button = document.createElement('button');
-                button.className = 'suggestion-btn';
-                button.textContent = letter;
-                button.onclick = () => selectPredictedLetter(letter, `group-${groupName}`);
-                container.appendChild(button);
-            });
-            
-            container.style.display = 'block';
-            updateStatus('success', `🔄 Choose from ${groupName} letters`);
-        }
-        
-        function insertPermanentLetter(letter) {
-            let targetIndex;
-            
-            if (selectedBoxIndex >= 0) {
-                // Use the selected box
-                targetIndex = selectedBoxIndex;
-                selectedBoxIndex = -1; // Clear selection after use
-            } else {
-                // Use the current position
-                targetIndex = currentLetterIndex;
-                currentLetterIndex++;
-            }
-            
-            // Extend array if needed
-            while (spelledLetters.length <= targetIndex) {
-                spelledLetters.push('');
-            }
-            
-            // Insert the letter
-            spelledLetters[targetIndex] = letter;
-            
-            updateProgress();
-            hideLetterSuggestions(); // Hide any temporary suggestions
-            
-            // Provide feedback
-            const expectedLetter = currentWord.answer[targetIndex];
-            if (letter === expectedLetter) {
-                updateStatus('success', `✅ Perfect! "${letter}" is correct for box ${targetIndex + 1}`);
-                stats.correctLetters++;
-            } else {
-                updateStatus('success', `📝 "${letter}" added to box ${targetIndex + 1} (expected "${expectedLetter}")`);
-            }
-            
-            stats.totalLetters++;
-            saveStats();
-            updateStatsDisplay();
-            
-            // Check if word is complete
-            checkWordCompletion();
+            // Auto-clear after 3 seconds
+            setTimeout(() => {
+                awaitingLetterChoice = false;
+                lastHeardInput = '';
+            }, 3000);
         }
         
         function hideLetterSuggestions() {
-            document.getElementById('letterSuggestions').style.display = 'none';
             awaitingLetterChoice = false;
             lastHeardInput = '';
-        }
-        
-        
-        function getNewWord() {
-            // Stop current listening
-            if (isListening) {
-                stopListening();
-            }
-            
-            // Hide suggestions
-            hideLetterSuggestions();
-            
-            // Get random word (avoid repetition)
-            let newWord;
-            do {
-                newWord = wordDatabase[Math.floor(Math.random() * wordDatabase.length)];
-            } while (newWord === currentWord && wordDatabase.length > 1);
-            
-            currentWord = newWord;
-            currentLetterIndex = 0;
-            spelledLetters = [];
-            selectedBoxIndex = -1;
-            lastHeardInput = '';
-            
-            // Update display
-            document.getElementById('question').textContent = currentWord.question + ':';
-            document.getElementById('answer').textContent = currentWord.answer;
-            
-            updateProgress();
-            updateStatus('not-listening', '🎯 New word loaded! Ready to practice.');
         }
 
         // Check browser compatibility and microphone permission on page load
