@@ -1023,12 +1023,12 @@
                 return;
             }
 
-            // Guard: abort existing instance before re-initializing
-            if (recognition) {
+            // Guard: only abort if a session is actively running (avoid double-firing onend)
+            if (recognition && isListening) {
                 try { recognition.abort(); } catch(e) {}
-                recognition = null;
             }
-
+            // Always create fresh object — Chrome Android reusing the same instance
+            // after a no-speech failure carries over dirty audio pipeline state.
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.continuous = false;   // Stop after first result — user presses Listen each time
             recognition.interimResults = false;
@@ -1046,12 +1046,17 @@
             recognition.onend = function() {
                 isListening = false;
                 clearWatchdog();
-                document.getElementById('startBtn').style.display = 'inline-block';
-                document.getElementById('stopBtn').style.display = 'none';
-                // Only update status if no result came through (timeout/abort without speech)
-                if (!resultReceived) {
-                    updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
-                }
+                // 400ms cooldown before re-enabling Start button.
+                // Chrome Android needs time to fully release the audio session;
+                // without this gap, rapid restarts inherit dirty pipeline state
+                // and produce cascading no-speech errors.
+                setTimeout(function() {
+                    document.getElementById('startBtn').style.display = 'inline-block';
+                    document.getElementById('stopBtn').style.display = 'none';
+                    if (!resultReceived) {
+                        updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
+                    }
+                }, 400);
             };
 
             recognition.onresult = function(event) {
@@ -1336,7 +1341,8 @@
                 return;
             }
             
-            if (recognition && !isListening) {
+            if (!isListening) {
+                initializeSpeechRecognition(); // Fresh object every attempt — prevents stale Chrome Android audio state
                 try {
                     recognition.start();
                 } catch (error) {
