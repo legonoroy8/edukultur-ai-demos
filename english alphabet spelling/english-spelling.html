@@ -748,6 +748,16 @@
             </div>
         </div>
 
+        <!-- Skip suggestion: shown after 3 failed attempts on same letter -->
+        <div class="alert alert-warning" id="skipSuggestion" style="display:none; margin-top: 16px;">
+            <strong>💡 Having trouble with "<span id="skipLetterName"></span>"?</strong><br>
+            You've attempted this letter 3 times. What would you like to do?
+            <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="primary-btn" style="padding: 10px 20px; font-size: 0.9em;" onclick="markAndSkip()">⏭️ Mark &amp; Skip</button>
+                <button class="secondary-btn" style="padding: 10px 20px; font-size: 0.9em;" onclick="dismissSkipSuggestion()">🔄 Try Again</button>
+            </div>
+        </div>
+
         <div class="stats-section">
             <h3>📊 Practice Statistics</h3>
             <div class="stats-grid">
@@ -766,6 +776,10 @@
                 <div class="stat-item">
                     <div class="stat-value" id="streak">0</div>
                     <div class="stat-label">Current Streak</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="flaggedLetters">0</div>
+                    <div class="stat-label">Flagged Letters</div>
                 </div>
             </div>
         </div>
@@ -839,8 +853,9 @@
 
         let recognition;
         let isListening = false;
-        let shouldBeListening = false;
         let watchdogTimer = null;
+        let resultReceived = false;
+        let attemptCount = 0;
         let currentIndex = 0;
         let currentLetter = alphabetSequence[0];
         let userInput = '';
@@ -854,7 +869,8 @@
             lettersCompleted: 0,
             correctPronunciations: 0,
             totalAttempts: 0,
-            currentStreak: 0
+            currentStreak: 0,
+            flaggedLetters: 0
         };
         
         // Load stats from localStorage
@@ -1014,14 +1030,15 @@
             }
 
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.continuous = true;
+            recognition.continuous = false;   // Stop after first result — user presses Listen each time
             recognition.interimResults = false;
             recognition.lang = 'en-US';
 
             recognition.onstart = function() {
                 isListening = true;
-                resetWatchdog();
-                updateStatus('listening', '🎤 Listening... Say one letter at a time');
+                resultReceived = false;
+                startWatchdog();
+                updateStatus('listening', `🎤 Listening... Say the letter: ${currentLetter.letter}`);
                 document.getElementById('startBtn').style.display = 'none';
                 document.getElementById('stopBtn').style.display = 'inline-block';
             };
@@ -1029,71 +1046,60 @@
             recognition.onend = function() {
                 isListening = false;
                 clearWatchdog();
-                if (shouldBeListening) {
-                    // Chrome fires onend after no-speech timeout even with continuous=true (known mobile bug).
-                    // Keep UI in "listening" state so user sees no interruption, restart quickly.
-                    updateStatus('listening', '🎤 Listening... Say one letter at a time');
-                    setTimeout(function() {
-                        if (shouldBeListening && recognition) {
-                            try { recognition.start(); } catch(e) { console.warn('Restart skipped:', e.message); }
-                        }
-                    }, 100);
-                } else {
-                    updateStatus('not-listening', 'Stopped listening');
-                    document.getElementById('startBtn').style.display = 'inline-block';
-                    document.getElementById('stopBtn').style.display = 'none';
+                document.getElementById('startBtn').style.display = 'inline-block';
+                document.getElementById('stopBtn').style.display = 'none';
+                // Only update status if no result came through (timeout/abort without speech)
+                if (!resultReceived) {
+                    updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
                 }
             };
 
             recognition.onresult = function(event) {
-                resetWatchdog(); // Reset on each result
+                resultReceived = true;
+                clearWatchdog();
                 const result = event.results[event.results.length - 1][0].transcript.trim().toUpperCase();
                 console.log('Heard:', result);
                 processVoiceInput(result);
+                // recognition auto-stops (continuous: false) → onend restores Start button
             };
 
             recognition.onerror = function(event) {
                 console.error('Speech recognition error:', event.error);
                 clearWatchdog();
                 if (event.error === 'not-allowed') {
-                    shouldBeListening = false;
                     isListening = false;
                     document.getElementById('permissionDenied').style.display = 'block';
                     document.getElementById('startBtn').style.display = 'inline-block';
                     document.getElementById('stopBtn').style.display = 'none';
                     updateStatus('error', '❌ Microphone access denied. Please allow microphone access.');
                 } else if (event.error === 'no-speech') {
-                    // Non-fatal — onend fires next, auto-restart handles it
-                    updateStatus('listening', '🎤 Listening... (no speech detected)');
+                    updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
                 } else if (event.error === 'network') {
-                    // onend will fire → auto-restart if shouldBeListening
-                    updateStatus('error', '⚠️ Network error — reconnecting...');
+                    updateStatus('error', '⚠️ Network error. Press "Start Listening" to try again.');
                 } else if (event.error === 'audio-capture') {
-                    shouldBeListening = false;
                     isListening = false;
                     document.getElementById('startBtn').style.display = 'inline-block';
                     document.getElementById('stopBtn').style.display = 'none';
                     updateStatus('error', '❌ Microphone not accessible. Check device settings.');
                 } else if (event.error === 'aborted') {
-                    // Intentional abort (watchdog/cleanup) — onend fires next
+                    // Watchdog abort — onend handles button state
                 } else {
-                    updateStatus('error', `⚠️ Recognition error: ${event.error}. Reconnecting...`);
+                    updateStatus('error', `⚠️ Error: ${event.error}. Press "Start Listening" to try again.`);
                 }
             };
 
             document.getElementById('startBtn').disabled = false;
-            updateStatus('not-listening', '✅ Ready to play! Click "Start Listening" to begin');
+            updateStatus('not-listening', '✅ Ready! Press "Start Listening" to begin.');
         }
 
         function clearWatchdog() {
             if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
         }
 
-        function resetWatchdog() {
+        function startWatchdog() {
             clearWatchdog();
-            // If 10s pass with no result or end event, the session has hung — abort to trigger onend+restart
             watchdogTimer = setTimeout(function() {
-                console.warn('Watchdog: recognition hung for 10s, aborting to restart');
+                console.warn('Watchdog: recognition hung for 10s, aborting');
                 try { if (recognition) recognition.abort(); } catch(e) {}
             }, 10000);
         }
@@ -1332,7 +1338,6 @@
             
             if (recognition && !isListening) {
                 try {
-                    shouldBeListening = true;
                     recognition.start();
                 } catch (error) {
                     console.error('Failed to start recognition:', error);
@@ -1347,7 +1352,6 @@
         }
 
         function stopListening() {
-            shouldBeListening = false;
             clearWatchdog();
             if (recognition && isListening) {
                 recognition.stop();
@@ -1376,45 +1380,71 @@
         function checkLetterPronunciation(spokenLetter, heardAs) {
             const expectedLetter = currentLetter.letter;
             const isCorrect = spokenLetter === expectedLetter;
-            
-            // Update statistics
+
             stats.totalAttempts++;
-            
+
             if (isCorrect) {
                 stats.correctPronunciations++;
                 stats.currentStreak++;
-                updateStatus('success', `✅ Perfect! You said "${spokenLetter}" correctly (heard: "${heardAs}")`);
-                
-                // Move to next letter after a short delay
-                setTimeout(() => {
-                    nextLetter();
-                }, 1500);
+                attemptCount = 0;
+                hideSkipSuggestion();
+                updateStatus('success', `✅ Perfect! "${spokenLetter}" is correct. Press "Start Listening" for the next letter.`);
+                setTimeout(() => { nextLetter(); }, 1500);
             } else {
                 stats.currentStreak = 0;
-                updateStatus('error', `❌ You said "${spokenLetter}" but the letter is "${expectedLetter}". Try again! (heard: "${heardAs}")`);
+                attemptCount++;
+                updateStatus('error', `❌ Heard "${spokenLetter}" — expected "${expectedLetter}". Press "Start Listening" to try again.`);
+                if (attemptCount >= 3) {
+                    setTimeout(() => showSkipSuggestion(), 800);
+                }
             }
-            
+
             saveStats();
             updateStatsDisplay();
+        }
+
+        function showSkipSuggestion() {
+            document.getElementById('skipLetterName').textContent = currentLetter.letter;
+            document.getElementById('skipSuggestion').style.display = 'block';
+        }
+
+        function hideSkipSuggestion() {
+            document.getElementById('skipSuggestion').style.display = 'none';
+        }
+
+        function dismissSkipSuggestion() {
+            hideSkipSuggestion();
+            attemptCount = 0;
+            updateStatus('not-listening', `Press "Start Listening" to try "${currentLetter.letter}" again.`);
+        }
+
+        function markAndSkip() {
+            hideSkipSuggestion();
+            stats.flaggedLetters = (stats.flaggedLetters || 0) + 1;
+            saveStats();
+            updateStatsDisplay();
+            updateStatus('success', `⏭️ "${currentLetter.letter}" marked for review. Moving to next letter.`);
+            setTimeout(() => { nextLetter(); }, 1200);
         }
         
         function nextLetter() {
             stats.lettersCompleted++;
+            attemptCount = 0;
+            hideSkipSuggestion();
             currentIndex++;
-            
+
             if (currentIndex >= alphabetSequence.length) {
-                // Completed all letters!
                 updateStatus('success', '🎉 Congratulations! You completed all 130 letters!');
                 stopListening();
                 saveStats();
                 updateStatsDisplay();
                 return;
             }
-            
+
             currentLetter = alphabetSequence[currentIndex];
             userInput = '';
             updateProgress();
-            updateStatus('listening', `🎤 Listening... Say the letter: ${currentLetter.letter}`);
+            updateStatus('not-listening', `Press "Start Listening" to say the letter: ${currentLetter.letter}`);
         }
         
         function skipLetter() {
@@ -1432,7 +1462,8 @@
             document.getElementById('lettersCompleted').textContent = stats.lettersCompleted;
             document.getElementById('correctPronunciations').textContent = stats.correctPronunciations;
             document.getElementById('streak').textContent = stats.currentStreak;
-            
+            document.getElementById('flaggedLetters').textContent = stats.flaggedLetters || 0;
+
             const accuracy = stats.totalAttempts > 0 ? (stats.correctPronunciations / stats.totalAttempts) * 100 : 100;
             document.getElementById('accuracy').textContent = accuracy.toFixed(1) + '%';
         }
