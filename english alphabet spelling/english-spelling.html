@@ -1030,12 +1030,14 @@
                 isListening = false;
                 clearWatchdog();
                 if (shouldBeListening) {
-                    // Auto-restart: Chrome fires onend on silence even with continuous=true (mobile bug)
+                    // Chrome fires onend after no-speech timeout even with continuous=true (known mobile bug).
+                    // Keep UI in "listening" state so user sees no interruption, restart quickly.
+                    updateStatus('listening', '🎤 Listening... Say one letter at a time');
                     setTimeout(function() {
                         if (shouldBeListening && recognition) {
-                            try { recognition.start(); } catch(e) { console.warn('Restart failed:', e); }
+                            try { recognition.start(); } catch(e) { console.warn('Restart skipped:', e.message); }
                         }
-                    }, 300);
+                    }, 100);
                 } else {
                     updateStatus('not-listening', 'Stopped listening');
                     document.getElementById('startBtn').style.display = 'inline-block';
