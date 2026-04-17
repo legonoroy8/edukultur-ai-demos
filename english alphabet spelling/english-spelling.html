@@ -649,6 +649,27 @@
             z-index: 1001;
         }
 
+        .theme-toggle {
+            background: var(--color-bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 0.4rem;
+            cursor: pointer;
+            color: var(--color-text-secondary);
+            display: flex;
+            align-items: center;
+        }
+        .theme-toggle:hover { color: var(--color-text-primary); }
+        [data-theme="light"] .sun-icon { display: none; }
+        [data-theme="dark"] .moon-icon,
+        body:not([data-theme]) .moon-icon { display: none; }
+
+        .demo-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -692,6 +713,10 @@
                 Back to Homepage
             </a>
             <h1 class="demo-title">English Spelling Demo</h1>
+            <button class="theme-toggle" aria-label="Toggle theme" onclick="(function(){var t=document.body.getAttribute('data-theme')==='dark'?'light':'dark';document.body.setAttribute('data-theme',t);localStorage.setItem('theme',t);})()">
+                <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><path d="M12 1V3M12 21V23M23 12H21M3 12H1M20.49 3.51L19.07 4.93M4.93 19.07L3.51 20.49M20.49 20.49L19.07 19.07M4.93 4.93L3.51 3.51" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </div>
     </header>
 
@@ -814,6 +839,8 @@
 
         let recognition;
         let isListening = false;
+        let shouldBeListening = false;
+        let watchdogTimer = null;
         let currentIndex = 0;
         let currentLetter = alphabetSequence[0];
         let userInput = '';
@@ -974,51 +1001,99 @@
 
         // Initialize speech recognition
         function initializeSpeechRecognition() {
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-                recognition.continuous = true;
-                recognition.interimResults = false;
-                recognition.lang = 'en-US';
+            if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                document.getElementById('browserSupport').style.display = 'block';
+                document.getElementById('startBtn').disabled = true;
+                return;
+            }
 
-                recognition.onstart = function() {
-                    isListening = true;
-                    updateStatus('listening', '🎤 Listening... Say one letter at a time');
-                    document.getElementById('startBtn').style.display = 'none';
-                    document.getElementById('stopBtn').style.display = 'inline-block';
-                };
+            // Guard: abort existing instance before re-initializing
+            if (recognition) {
+                try { recognition.abort(); } catch(e) {}
+                recognition = null;
+            }
 
-                recognition.onend = function() {
-                    isListening = false;
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function() {
+                isListening = true;
+                resetWatchdog();
+                updateStatus('listening', '🎤 Listening... Say one letter at a time');
+                document.getElementById('startBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'inline-block';
+            };
+
+            recognition.onend = function() {
+                isListening = false;
+                clearWatchdog();
+                if (shouldBeListening) {
+                    // Auto-restart: Chrome fires onend on silence even with continuous=true (mobile bug)
+                    setTimeout(function() {
+                        if (shouldBeListening && recognition) {
+                            try { recognition.start(); } catch(e) { console.warn('Restart failed:', e); }
+                        }
+                    }, 300);
+                } else {
                     updateStatus('not-listening', 'Stopped listening');
                     document.getElementById('startBtn').style.display = 'inline-block';
                     document.getElementById('stopBtn').style.display = 'none';
-                };
+                }
+            };
 
-                recognition.onresult = function(event) {
-                    const result = event.results[event.results.length - 1][0].transcript.trim().toUpperCase();
-                    console.log('Heard:', result);
-                    processVoiceInput(result);
-                };
+            recognition.onresult = function(event) {
+                resetWatchdog(); // Reset on each result
+                const result = event.results[event.results.length - 1][0].transcript.trim().toUpperCase();
+                console.log('Heard:', result);
+                processVoiceInput(result);
+            };
 
-                recognition.onerror = function(event) {
-                    console.error('Speech recognition error:', event.error);
-                    if (event.error === 'not-allowed') {
-                        document.getElementById('permissionDenied').style.display = 'block';
-                        updateStatus('error', '❌ Microphone access denied. Please allow microphone access.');
-                    } else if (event.error === 'no-speech') {
-                        updateStatus('not-listening', '🔇 No speech detected. Click "Start Listening" to try again.');
-                    } else {
-                        updateStatus('error', `Error: ${event.error}`);
-                    }
-                };
-                
-                // Enable the start button only if permission is granted
-                document.getElementById('startBtn').disabled = false;
-                updateStatus('not-listening', '✅ Ready to play! Click "Start Listening" to begin');
-            } else {
-                document.getElementById('browserSupport').style.display = 'block';
-                document.getElementById('startBtn').disabled = true;
-            }
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error:', event.error);
+                clearWatchdog();
+                if (event.error === 'not-allowed') {
+                    shouldBeListening = false;
+                    isListening = false;
+                    document.getElementById('permissionDenied').style.display = 'block';
+                    document.getElementById('startBtn').style.display = 'inline-block';
+                    document.getElementById('stopBtn').style.display = 'none';
+                    updateStatus('error', '❌ Microphone access denied. Please allow microphone access.');
+                } else if (event.error === 'no-speech') {
+                    // Non-fatal — onend fires next, auto-restart handles it
+                    updateStatus('listening', '🎤 Listening... (no speech detected)');
+                } else if (event.error === 'network') {
+                    // onend will fire → auto-restart if shouldBeListening
+                    updateStatus('error', '⚠️ Network error — reconnecting...');
+                } else if (event.error === 'audio-capture') {
+                    shouldBeListening = false;
+                    isListening = false;
+                    document.getElementById('startBtn').style.display = 'inline-block';
+                    document.getElementById('stopBtn').style.display = 'none';
+                    updateStatus('error', '❌ Microphone not accessible. Check device settings.');
+                } else if (event.error === 'aborted') {
+                    // Intentional abort (watchdog/cleanup) — onend fires next
+                } else {
+                    updateStatus('error', `⚠️ Recognition error: ${event.error}. Reconnecting...`);
+                }
+            };
+
+            document.getElementById('startBtn').disabled = false;
+            updateStatus('not-listening', '✅ Ready to play! Click "Start Listening" to begin');
+        }
+
+        function clearWatchdog() {
+            if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; }
+        }
+
+        function resetWatchdog() {
+            clearWatchdog();
+            // If 10s pass with no result or end event, the session has hung — abort to trigger onend+restart
+            watchdogTimer = setTimeout(function() {
+                console.warn('Watchdog: recognition hung for 10s, aborting to restart');
+                try { if (recognition) recognition.abort(); } catch(e) {}
+            }, 10000);
         }
 
         // Letter phonetic mapping to handle similar sounding words
@@ -1255,6 +1330,7 @@
             
             if (recognition && !isListening) {
                 try {
+                    shouldBeListening = true;
                     recognition.start();
                 } catch (error) {
                     console.error('Failed to start recognition:', error);
@@ -1269,6 +1345,8 @@
         }
 
         function stopListening() {
+            shouldBeListening = false;
+            clearWatchdog();
             if (recognition && isListening) {
                 recognition.stop();
             }
@@ -1395,6 +1473,10 @@
 
         // Check browser compatibility and microphone permission on page load
         window.onload = function() {
+            // Restore saved theme
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.setAttribute('data-theme', savedTheme);
+
             loadStats();
             updateProgress();
             updateStatsDisplay();
