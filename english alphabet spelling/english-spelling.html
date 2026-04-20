@@ -1171,8 +1171,8 @@
             updateStatus('not-listening', '✅ Ready! Press "Start Round" to begin.');
         }
 
-        // Start a fresh recognition session (called each loop iteration)
-        function startListeningSession() {
+        // Web Speech API fallback — used only when VoskEngine is not ready
+        function startListeningSessionWSAPI() {
             if (micState !== MIC_STATE.IDLE) return;
             setMicState(MIC_STATE.STARTING);
 
@@ -1211,7 +1211,7 @@
                         if (!resultReceived) {
                             updateStatus('not-listening', '🔇 Nothing heard — still listening…');
                         }
-                        startListeningSession();
+                        startListeningSessionWSAPI();
                     }
                 }, 400);
             };
@@ -1269,24 +1269,70 @@
             }, 10000);
         }
 
-        // Public: start a round (mic stays on for all letters)
-        function startListening() {
-            if (!microphonePermissionGranted) {
-                requestMicrophonePermission();
-                return;
+        // VOSK-based session — mic stays open entire round, no restart between letters
+        async function startListeningSession() {
+            if (micState !== MIC_STATE.IDLE) return;
+            setMicState(MIC_STATE.STARTING);
+
+            await VoskEngine.startListening(
+                function onResult(text) {
+                    if (voskIgnoreResults) return; // During feedback delay — ignore
+                    if (!roundActive) return;
+                    setMicState(MIC_STATE.PROCESSING);
+                    processVoiceInput(text);
+                    if (roundActive) {
+                        setMicState(MIC_STATE.LISTENING);
+                    }
+                },
+                function onError(e) {
+                    roundActive = false;
+                    setMicState(MIC_STATE.ERROR);
+                    if (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')) {
+                        document.getElementById('permissionDenied').style.display = 'block';
+                        updateStatus('error', '❌ Microphone access denied.');
+                    } else {
+                        updateStatus('error', `❌ Mic error: ${e ? e.message || e : 'unknown'}`);
+                    }
+                }
+            );
+
+            if (VoskEngine.isListeningActive) {
+                setMicState(MIC_STATE.LISTENING);
+            } else if (micState !== MIC_STATE.ERROR) {
+                setMicState(MIC_STATE.ERROR);
+                updateStatus('error', '❌ Failed to open microphone.');
             }
-            if (micState !== MIC_STATE.IDLE) return; // Busy — ignore spam clicks
-            roundActive = true;
-            startListeningSession();
         }
 
-        // Public: end the round
+        // Public: start a round — routes to VOSK or WSAPI fallback
+        function startListening() {
+            if (micState !== MIC_STATE.IDLE) return; // Busy — ignore spam clicks
+            roundActive = true;
+            if (VoskEngine.isReady) {
+                startListeningSession(); // VOSK path — handles mic permission internally
+            } else {
+                // WSAPI fallback path
+                if (!microphonePermissionGranted) {
+                    requestMicrophonePermission();
+                    return;
+                }
+                startListeningSessionWSAPI();
+            }
+        }
+
+        // Public: end the round (works for both VOSK and WSAPI paths)
         function stopListening() {
             roundActive = false;
             setMicState(MIC_STATE.STOPPING);
             clearWatchdog();
-            if (recognition) {
+            if (VoskEngine.isListeningActive) {
+                VoskEngine.stopListening();
+                // VOSK stop is synchronous — go straight to cooldown
+                setMicState(MIC_STATE.COOLDOWN);
+                setTimeout(() => setMicState(MIC_STATE.IDLE), 400);
+            } else if (recognition) {
                 try { recognition.stop(); } catch(e) {}
+                // WSAPI stop is async — onend fires and handles COOLDOWN → IDLE
             }
             updateStatus('not-listening', '🛑 Round ended. Press "Start Round" to begin again.');
         }
@@ -1547,11 +1593,14 @@
                 attemptCount = 0;
                 hideSkipSuggestion();
                 updateStatus('success', `✅ Perfect! "${spokenLetter}" is correct.`);
-                setTimeout(() => { nextLetter(); }, 1500);
+                voskIgnoreResults = true;
+                setTimeout(() => { voskIgnoreResults = false; nextLetter(); }, 1500);
             } else {
                 stats.currentStreak = 0;
                 attemptCount++;
                 updateStatus('error', `❌ Heard "${spokenLetter}" — expected "${expectedLetter}". Try again!`);
+                voskIgnoreResults = true;
+                setTimeout(() => { voskIgnoreResults = false; }, 800);
                 if (attemptCount >= 3) {
                     setTimeout(() => showSkipSuggestion(), 800);
                 }
