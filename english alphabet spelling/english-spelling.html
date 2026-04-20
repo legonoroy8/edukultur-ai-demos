@@ -1668,7 +1668,7 @@
         }
 
         // Check browser compatibility and microphone permission on page load
-        window.onload = function() {
+        window.onload = async function() {
             // Restore saved theme
             const savedTheme = localStorage.getItem('theme') || 'dark';
             document.body.setAttribute('data-theme', savedTheme);
@@ -1677,8 +1677,22 @@
             updateProgress();
             updateStatsDisplay();
             updateDebugInfo();
-            
-            
+
+            // Disable Start Round and show loading message until VOSK engine is ready
+            document.getElementById('startBtn').disabled = true;
+            updateStatus('not-listening', '⏳ Loading speech engine… (first visit downloads ~40MB, cached after)');
+
+            const voskLoaded = await VoskEngine.init();
+            if (voskLoaded) {
+                document.getElementById('startBtn').disabled = false;
+                updateStatus('not-listening', '✅ Speech engine ready! Press "Start Round" to begin.');
+            } else {
+                // Fall back to Web Speech API
+                console.warn('VoskEngine failed — falling back to Web Speech API');
+                initializeSpeechRecognition();
+            }
+
+
             console.log('🔍 System Info:');
             console.log('Protocol:', location.protocol);
             console.log('User Agent:', navigator.userAgent);
