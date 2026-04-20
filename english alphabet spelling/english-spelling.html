@@ -701,6 +701,8 @@
             }
         }
     </style>
+    <!-- vosk-browser: WASM speech recognition engine -->
+    <script src="https://cdn.jsdelivr.net/npm/vosk-browser@0.0.5/dist/vosk.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -738,13 +740,13 @@
             
             <div class="controls-section">
                 <div class="controls">
-                    <button class="primary-btn" id="startBtn" onclick="startListening()">🎤 Start Listening</button>
-                    <button class="danger-btn" id="stopBtn" onclick="stopListening()" style="display:none;">⏹️ Stop</button>
+                    <button class="primary-btn" id="startBtn" onclick="startListening()">🎤 Start Round</button>
+                    <button class="danger-btn" id="stopBtn" onclick="stopListening()" style="display:none;">⏹️ End Round</button>
                     <button class="secondary-btn" onclick="skipLetter()">⏭️ Skip Letter</button>
                     <button class="secondary-btn" onclick="repeatLetter()">🔄 Repeat</button>
                 </div>
                 
-                <div class="status not-listening" id="status">Click "Start Listening" to begin</div>
+                <div class="status not-listening" id="status">Click "Start Round" to begin</div>
             </div>
         </div>
 
@@ -787,7 +789,7 @@
             <div class="instructions">
                 <h3>📋 How to Use</h3>
                 <ul>
-                    <li>Click "Start Listening" to begin voice recognition</li>
+                    <li>Click "Start Round" — mic stays on for the entire round</li>
                     <li>Say each letter clearly when prompted (e.g., "A", "B", "C")</li>
                     <li>You can also use phonetic words: "A for Apple", "B for Bravo", etc.</li>
                     <li>Practice all 26 letters, 5 times each (130 total)</li>
@@ -852,6 +854,11 @@
         }
 
         let recognition;
+        // State machine (per tech_migration.md)
+        const MIC_STATE = { IDLE: 'idle', STARTING: 'starting', LISTENING: 'listening', PROCESSING: 'processing', STOPPING: 'stopping', COOLDOWN: 'cooldown', ERROR: 'error' };
+        let micState = MIC_STATE.IDLE;
+        let roundActive = false;
+        // Legacy alias — used by debug panel only
         let isListening = false;
         let watchdogTimer = null;
         let resultReceived = false;
@@ -863,7 +870,86 @@
         let awaitingLetterChoice = false;
         let suggestedLetters = [];
         let lastHeardInput = '';
-        
+        let voskIgnoreResults = false; // true during feedback delays — prevents double-recognition
+
+        // ── VoskEngine ────────────────────────────────────────────────────────────
+        const VoskEngine = {
+            _model: null,
+            _recognizer: null,
+            _audioContext: null,
+            _processor: null,
+            _source: null,
+            _stream: null,
+            isReady: false,
+            isListeningActive: false,
+
+            async init() {
+                if (this.isReady) return true; // Already loaded — skip re-init
+                try {
+                    if (typeof Vosk === 'undefined') {
+                        console.warn('VoskEngine: vosk-browser script not loaded');
+                        return false;
+                    }
+                    Vosk.setLogLevel(-1);
+                    this._model = await Vosk.createModel('./models/vosk-model-small-en-us-0.15.tar.gz');
+                    this.isReady = true;
+                    console.log('VoskEngine: model loaded successfully');
+                    return true;
+                } catch (e) {
+                    console.error('VoskEngine init failed:', e);
+                    return false;
+                }
+            },
+
+            async startListening(onResult, onError) {
+                if (!this.isReady || this.isListeningActive) return;
+                try {
+                    this.isListeningActive = true; // Set immediately to prevent concurrent calls
+                    this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this._audioContext = new AudioContext({ sampleRate: 16000 });
+
+                    const grammar = JSON.stringify([
+                        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+                        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                        'bee', 'see', 'dee', 'ef', 'gee', 'aitch', 'eye', 'jay', 'kay',
+                        'el', 'em', 'en', 'oh', 'pee', 'cue', 'queue', 'are', 'ar', 'es',
+                        'tee', 'you', 'vee', 'why', 'zed', 'zee', 'ex', 'double u', 'double-u',
+                        '[unk]'
+                    ]);
+                    this._recognizer = new this._model.KaldiRecognizer(16000, grammar);
+
+                    this._recognizer.on('result', (message) => {
+                        const text = message.result && message.result.text;
+                        if (text && text !== '[unk]' && text.trim() !== '') {
+                            onResult(text.trim().toUpperCase());
+                        }
+                    });
+
+                    this._source = this._audioContext.createMediaStreamSource(this._stream);
+                    this._processor = this._audioContext.createScriptProcessor(4096, 1, 1);
+                    this._processor.onaudioprocess = (e) => {
+                        if (this._recognizer) {
+                            this._recognizer.acceptWaveform(e.inputBuffer.getChannelData(0));
+                        }
+                    };
+                    this._source.connect(this._processor);
+                    this._processor.connect(this._audioContext.destination);
+                } catch (e) {
+                    console.error('VoskEngine startListening failed:', e);
+                    if (onError) onError(e);
+                }
+            },
+
+            stopListening() {
+                this.isListeningActive = false;
+                if (this._source) { this._source.disconnect(); this._source = null; }
+                if (this._processor) { this._processor.disconnect(); this._processor = null; }
+                if (this._audioContext) { this._audioContext.close(); this._audioContext = null; }
+                if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+                if (this._recognizer) { this._recognizer.free(); this._recognizer = null; }
+            }
+        };
+
         // Statistics
         let stats = {
             lettersCompleted: 0,
@@ -906,8 +992,8 @@
             document.getElementById('debugPermissions').textContent = hasPermissionsAPI ? 'Available' : 'Not Available';
             document.getElementById('debugPermissions').className = hasPermissionsAPI ? 'status-ok' : 'status-warning';
             
-            const micState = microphonePermissionGranted ? 'Granted' : (isListening ? 'Requesting' : 'Not Requested');
-            document.getElementById('debugMicState').textContent = micState;
+            const micStateDisplay = microphonePermissionGranted ? `Granted (${micState})` : (micState !== MIC_STATE.IDLE ? 'Requesting' : 'Not Requested');
+            document.getElementById('debugMicState').textContent = micStateDisplay;
             document.getElementById('debugMicState').className = microphonePermissionGranted ? 'status-ok' : 'status-warning';
         }
         
@@ -974,8 +1060,10 @@
                 // Stop the stream immediately (we only needed it for permission)
                 stream.getTracks().forEach(track => track.stop());
                 
-                // Initialize speech recognition
+                // Initialize speech recognition support check, then auto-start round
                 initializeSpeechRecognition();
+                // Auto-start round after permission is freshly granted
+                setTimeout(() => { if (micState === MIC_STATE.IDLE) startListening(); }, 500);
                 
                 // Hide permission granted message after 3 seconds
                 setTimeout(() => {
@@ -1015,86 +1103,158 @@
             updateStatus('error', '❌ Voice recognition unavailable. Please use manual editing by clicking letter boxes.');
         }
 
-        // Initialize speech recognition
+        // ── State machine UI ──────────────────────────────────────────────────────
+        function setMicState(state) {
+            micState = state;
+            isListening = (state === MIC_STATE.LISTENING); // keep debug alias in sync
+            updateMicUI();
+            updateDebugInfo();
+        }
+
+        function updateMicUI() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn  = document.getElementById('stopBtn');
+            switch (micState) {
+                case MIC_STATE.IDLE:
+                    startBtn.style.display = 'inline-block';
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🎤 Start Round';
+                    stopBtn.style.display = 'none';
+                    break;
+                case MIC_STATE.STARTING:
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'inline-block';
+                    stopBtn.textContent = '⏹️ End Round';
+                    updateStatus('listening', '⏳ Starting mic…');
+                    break;
+                case MIC_STATE.LISTENING:
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'inline-block';
+                    stopBtn.textContent = '⏹️ End Round';
+                    updateStatus('listening', `🎤 Listening… Say: ${currentLetter.letter}`);
+                    break;
+                case MIC_STATE.PROCESSING:
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'inline-block';
+                    stopBtn.textContent = '⏹️ End Round';
+                    break;
+                case MIC_STATE.STOPPING:
+                case MIC_STATE.COOLDOWN:
+                    startBtn.style.display = 'none';
+                    startBtn.disabled = true;
+                    stopBtn.style.display = 'inline-block';
+                    stopBtn.disabled = true;
+                    break;
+                case MIC_STATE.ERROR:
+                    startBtn.style.display = 'inline-block';
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🎤 Start Round';
+                    stopBtn.style.display = 'none';
+                    stopBtn.disabled = false;
+                    break;
+            }
+            // Re-enable stop button when not in transition
+            if (micState !== MIC_STATE.STOPPING && micState !== MIC_STATE.COOLDOWN) {
+                stopBtn.disabled = false;
+            }
+        }
+
+        // ── Session management ────────────────────────────────────────────────────
+        // Called once — sets up recognition support check only
         function initializeSpeechRecognition() {
             if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
                 document.getElementById('browserSupport').style.display = 'block';
                 document.getElementById('startBtn').disabled = true;
                 return;
             }
+            document.getElementById('startBtn').disabled = false;
+            updateStatus('not-listening', '✅ Ready! Press "Start Round" to begin.');
+        }
 
-            // Guard: only abort if a session is actively running (avoid double-firing onend)
-            if (recognition && isListening) {
-                try { recognition.abort(); } catch(e) {}
-            }
-            // Always create fresh object — Chrome Android reusing the same instance
-            // after a no-speech failure carries over dirty audio pipeline state.
+        // Start a fresh recognition session (called each loop iteration)
+        function startListeningSession() {
+            if (micState !== MIC_STATE.IDLE) return;
+            setMicState(MIC_STATE.STARTING);
+
+            // Always fresh object — Chrome Android dirty pipeline fix
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.continuous = false;   // Stop after first result — user presses Listen each time
+            recognition.continuous = false;
             recognition.interimResults = false;
             recognition.lang = 'en-US';
 
             recognition.onstart = function() {
-                isListening = true;
                 resultReceived = false;
                 startWatchdog();
-                updateStatus('listening', `🎤 Listening... Say the letter: ${currentLetter.letter}`);
-                document.getElementById('startBtn').style.display = 'none';
-                document.getElementById('stopBtn').style.display = 'inline-block';
-            };
-
-            recognition.onend = function() {
-                isListening = false;
-                clearWatchdog();
-                // 400ms cooldown before re-enabling Start button.
-                // Chrome Android needs time to fully release the audio session;
-                // without this gap, rapid restarts inherit dirty pipeline state
-                // and produce cascading no-speech errors.
-                setTimeout(function() {
-                    document.getElementById('startBtn').style.display = 'inline-block';
-                    document.getElementById('stopBtn').style.display = 'none';
-                    if (!resultReceived) {
-                        updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
-                    }
-                }, 400);
+                setMicState(MIC_STATE.LISTENING);
             };
 
             recognition.onresult = function(event) {
                 resultReceived = true;
                 clearWatchdog();
+                setMicState(MIC_STATE.PROCESSING);
                 const result = event.results[event.results.length - 1][0].transcript.trim().toUpperCase();
                 console.log('Heard:', result);
                 processVoiceInput(result);
-                // recognition auto-stops (continuous: false) → onend restores Start button
+                // onend fires after onresult → schedules restart if roundActive
+            };
+
+            recognition.onend = function() {
+                clearWatchdog();
+                if (micState === MIC_STATE.ERROR) return; // Fatal error already set — don't overwrite
+                // Cooldown: 400ms — Chrome Android needs time to release audio session
+                setMicState(MIC_STATE.COOLDOWN);
+                setTimeout(function() {
+                    if (micState === MIC_STATE.ERROR) return; // Double-check still not error
+                    setMicState(MIC_STATE.IDLE);
+                    if (roundActive) {
+                        // Auto-restart only if result was processed (avoids restart on silence)
+                        if (!resultReceived) {
+                            updateStatus('not-listening', '🔇 Nothing heard — still listening…');
+                        }
+                        startListeningSession();
+                    }
+                }, 400);
             };
 
             recognition.onerror = function(event) {
                 console.error('Speech recognition error:', event.error);
                 clearWatchdog();
+                if (event.error === 'aborted') return; // Watchdog/manual abort → onend handles
                 if (event.error === 'not-allowed') {
-                    isListening = false;
+                    roundActive = false;
                     document.getElementById('permissionDenied').style.display = 'block';
-                    document.getElementById('startBtn').style.display = 'inline-block';
-                    document.getElementById('stopBtn').style.display = 'none';
-                    updateStatus('error', '❌ Microphone access denied. Please allow microphone access.');
-                } else if (event.error === 'no-speech') {
-                    updateStatus('not-listening', '🔇 Nothing heard. Press "Start Listening" to try again.');
-                } else if (event.error === 'network') {
-                    updateStatus('error', '⚠️ Network error. Press "Start Listening" to try again.');
+                    setMicState(MIC_STATE.ERROR);
+                    updateStatus('error', '❌ Microphone access denied.');
                 } else if (event.error === 'audio-capture') {
-                    isListening = false;
-                    document.getElementById('startBtn').style.display = 'inline-block';
-                    document.getElementById('stopBtn').style.display = 'none';
+                    roundActive = false;
+                    setMicState(MIC_STATE.ERROR);
                     updateStatus('error', '❌ Microphone not accessible. Check device settings.');
-                } else if (event.error === 'aborted') {
-                    // Watchdog abort — onend handles button state
+                } else if (event.error === 'no-speech') {
+                    // onend will fire → restart if roundActive
+                    updateStatus('not-listening', '🔇 Nothing heard — still listening…');
+                } else if (event.error === 'network') {
+                    updateStatus('error', '⚠️ Network error — retrying…');
+                    // onend fires → restart if roundActive
                 } else {
-                    updateStatus('error', `⚠️ Error: ${event.error}. Press "Start Listening" to try again.`);
+                    updateStatus('error', `⚠️ Error: ${event.error}`);
+                    // onend fires → restart if roundActive
                 }
             };
 
-            document.getElementById('startBtn').disabled = false;
-            updateStatus('not-listening', '✅ Ready! Press "Start Listening" to begin.');
+            try {
+                recognition.start();
+            } catch(e) {
+                console.error('Failed to start recognition:', e);
+                if (e.name === 'NotAllowedError') {
+                    roundActive = false;
+                    document.getElementById('permissionDenied').style.display = 'block';
+                    setMicState(MIC_STATE.ERROR);
+                    updateStatus('error', '❌ Microphone access denied.');
+                } else {
+                    setMicState(MIC_STATE.ERROR);
+                    updateStatus('error', `❌ Failed to start: ${e.message}`);
+                }
+            }
         }
 
         function clearWatchdog() {
@@ -1107,6 +1267,28 @@
                 console.warn('Watchdog: recognition hung for 10s, aborting');
                 try { if (recognition) recognition.abort(); } catch(e) {}
             }, 10000);
+        }
+
+        // Public: start a round (mic stays on for all letters)
+        function startListening() {
+            if (!microphonePermissionGranted) {
+                requestMicrophonePermission();
+                return;
+            }
+            if (micState !== MIC_STATE.IDLE) return; // Busy — ignore spam clicks
+            roundActive = true;
+            startListeningSession();
+        }
+
+        // Public: end the round
+        function stopListening() {
+            roundActive = false;
+            setMicState(MIC_STATE.STOPPING);
+            clearWatchdog();
+            if (recognition) {
+                try { recognition.stop(); } catch(e) {}
+            }
+            updateStatus('not-listening', '🛑 Round ended. Press "Start Round" to begin again.');
         }
 
         // Letter phonetic mapping to handle similar sounding words
@@ -1334,36 +1516,6 @@
             }
         }
 
-        
-        function startListening() {
-            if (!microphonePermissionGranted) {
-                requestMicrophonePermission();
-                return;
-            }
-            
-            if (!isListening) {
-                initializeSpeechRecognition(); // Fresh object every attempt — prevents stale Chrome Android audio state
-                try {
-                    recognition.start();
-                } catch (error) {
-                    console.error('Failed to start recognition:', error);
-                    if (error.name === 'NotAllowedError') {
-                        document.getElementById('permissionDenied').style.display = 'block';
-                        updateStatus('error', '❌ Microphone access denied. Please allow microphone access.');
-                    } else {
-                        updateStatus('error', `❌ Failed to start listening: ${error.message}`);
-                    }
-                }
-            }
-        }
-
-        function stopListening() {
-            clearWatchdog();
-            if (recognition && isListening) {
-                recognition.stop();
-            }
-        }
-
         function updateStatus(type, message) {
             const statusDiv = document.getElementById('status');
             statusDiv.className = `status ${type}`;
@@ -1394,12 +1546,12 @@
                 stats.currentStreak++;
                 attemptCount = 0;
                 hideSkipSuggestion();
-                updateStatus('success', `✅ Perfect! "${spokenLetter}" is correct. Press "Start Listening" for the next letter.`);
+                updateStatus('success', `✅ Perfect! "${spokenLetter}" is correct.`);
                 setTimeout(() => { nextLetter(); }, 1500);
             } else {
                 stats.currentStreak = 0;
                 attemptCount++;
-                updateStatus('error', `❌ Heard "${spokenLetter}" — expected "${expectedLetter}". Press "Start Listening" to try again.`);
+                updateStatus('error', `❌ Heard "${spokenLetter}" — expected "${expectedLetter}". Try again!`);
                 if (attemptCount >= 3) {
                     setTimeout(() => showSkipSuggestion(), 800);
                 }
@@ -1421,7 +1573,7 @@
         function dismissSkipSuggestion() {
             hideSkipSuggestion();
             attemptCount = 0;
-            updateStatus('not-listening', `Press "Start Listening" to try "${currentLetter.letter}" again.`);
+            updateStatus('not-listening', roundActive ? `🎤 Listening… Say: ${currentLetter.letter}` : `Press "Start Round" to try "${currentLetter.letter}" again.`);
         }
 
         function markAndSkip() {
@@ -1440,8 +1592,9 @@
             currentIndex++;
 
             if (currentIndex >= alphabetSequence.length) {
+                roundActive = false; // Stop auto-restart loop
                 updateStatus('success', '🎉 Congratulations! You completed all 130 letters!');
-                stopListening();
+                if (micState !== MIC_STATE.IDLE) stopListening();
                 saveStats();
                 updateStatsDisplay();
                 return;
@@ -1450,7 +1603,11 @@
             currentLetter = alphabetSequence[currentIndex];
             userInput = '';
             updateProgress();
-            updateStatus('not-listening', `Press "Start Listening" to say the letter: ${currentLetter.letter}`);
+            if (roundActive) {
+                updateStatus('listening', `🎤 Listening… Say: ${currentLetter.letter}`);
+            } else {
+                updateStatus('not-listening', `Press "Start Round" to say the letter: ${currentLetter.letter}`);
+            }
         }
         
         function skipLetter() {
@@ -1556,16 +1713,16 @@
                         updateStatus('error', '❌ Microphone access denied. Manual editing is still available.');
                     } else {
                         // Permission not yet requested
-                        updateStatus('not-listening', '🎤 Click "Start Listening" to enable voice recognition, or use manual editing');
+                        updateStatus('not-listening', '🎤 Click "Start Round" to enable voice recognition, or use manual editing');
                     }
                 }).catch(function(error) {
                     // Fallback if permissions API is not supported
                     console.log('Permissions API not supported, will request permission when needed');
-                    updateStatus('not-listening', '🎤 Ready to practice! Use voice or manual editing.');
+                    updateStatus('not-listening', '🎤 Ready to practice! Press "Start Round" to begin.');
                 });
             } else {
                 // Permissions API not available
-                updateStatus('not-listening', '🎤 Ready to practice! Use voice or manual editing.');
+                updateStatus('not-listening', '🎤 Ready to practice! Press "Start Round" to begin.');
             }
         };
     </script>
