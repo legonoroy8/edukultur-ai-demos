@@ -936,6 +936,7 @@
                     this._processor.connect(this._audioContext.destination);
                 } catch (e) {
                     console.error('VoskEngine startListening failed:', e);
+                    this.isListeningActive = false; // Reset so caller can detect failure
                     if (onError) onError(e);
                 }
             },
@@ -1060,8 +1061,10 @@
                 // Stop the stream immediately (we only needed it for permission)
                 stream.getTracks().forEach(track => track.stop());
                 
-                // Initialize speech recognition support check, then auto-start round
-                initializeSpeechRecognition();
+                // Initialize speech recognition support check (WSAPI fallback only)
+                if (!VoskEngine.isReady) {
+                    initializeSpeechRecognition();
+                }
                 // Auto-start round after permission is freshly granted
                 setTimeout(() => { if (micState === MIC_STATE.IDLE) startListening(); }, 500);
                 
@@ -1323,6 +1326,7 @@
         // Public: end the round (works for both VOSK and WSAPI paths)
         function stopListening() {
             roundActive = false;
+            voskIgnoreResults = false; // Cancel any pending feedback delay — round is over
             setMicState(MIC_STATE.STOPPING);
             clearWatchdog();
             if (VoskEngine.isListeningActive) {
@@ -1620,12 +1624,14 @@
         }
 
         function dismissSkipSuggestion() {
+            voskIgnoreResults = false;
             hideSkipSuggestion();
             attemptCount = 0;
             updateStatus('not-listening', roundActive ? `🎤 Listening… Say: ${currentLetter.letter}` : `Press "Start Round" to try "${currentLetter.letter}" again.`);
         }
 
         function markAndSkip() {
+            voskIgnoreResults = false;
             hideSkipSuggestion();
             stats.flaggedLetters = (stats.flaggedLetters || 0) + 1;
             saveStats();
@@ -1660,6 +1666,7 @@
         }
         
         function skipLetter() {
+            voskIgnoreResults = false;
             updateStatus('success', `⏭️ Skipped letter "${currentLetter.letter}"`);
             nextLetter();
         }
@@ -1770,7 +1777,9 @@
                 navigator.permissions.query({ name: 'microphone' }).then(function(result) {
                     if (result.state === 'granted') {
                         microphonePermissionGranted = true;
-                        initializeSpeechRecognition();
+                        if (!VoskEngine.isReady) {
+                            initializeSpeechRecognition(); // WSAPI fallback only
+                        }
                     } else if (result.state === 'denied') {
                         document.getElementById('permissionDenied').style.display = 'block';
                         updateStatus('error', '❌ Microphone access denied. Manual editing is still available.');
