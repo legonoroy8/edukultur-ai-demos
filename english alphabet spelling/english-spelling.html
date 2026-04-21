@@ -890,7 +890,7 @@
                         console.warn('VoskEngine: vosk-browser script not loaded');
                         return false;
                     }
-                    Vosk.setLogLevel(-1);
+                    if (typeof Vosk.setLogLevel === 'function') Vosk.setLogLevel(-1);
                     this._model = await Vosk.createModel('./models/vosk-model-small-en-us-0.15.tar.gz');
                     this.isReady = true;
                     console.log('VoskEngine: model loaded successfully');
