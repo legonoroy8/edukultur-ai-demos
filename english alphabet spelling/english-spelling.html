@@ -1204,19 +1204,29 @@
             recognition.onend = function() {
                 clearWatchdog();
                 if (micState === MIC_STATE.ERROR) return; // Fatal error already set — don't overwrite
-                // Cooldown: 400ms — Chrome Android needs time to release audio session
+
+                if (micState === MIC_STATE.STOPPING) {
+                    // User pressed End Round — transition to COOLDOWN then IDLE, no restart
+                    setMicState(MIC_STATE.COOLDOWN);
+                    setTimeout(function() { setMicState(MIC_STATE.IDLE); }, 400);
+                    return;
+                }
+
+                // Normal session end — cooldown, then maybe restart
                 setMicState(MIC_STATE.COOLDOWN);
+                // If no speech was detected, use a longer delay so the cycling isn't jarring.
+                // If a result was processed, short 400ms cooldown is fine.
+                const restartDelay = resultReceived ? 400 : 1500;
                 setTimeout(function() {
-                    if (micState === MIC_STATE.ERROR) return; // Double-check still not error
+                    if (micState === MIC_STATE.ERROR) return;
                     setMicState(MIC_STATE.IDLE);
                     if (roundActive) {
-                        // Auto-restart only if result was processed (avoids restart on silence)
                         if (!resultReceived) {
-                            updateStatus('not-listening', '🔇 Nothing heard — still listening…');
+                            updateStatus('not-listening', `🔇 Nothing heard — listening again for: ${currentLetter.letter}`);
                         }
                         startListeningSessionWSAPI();
                     }
-                }, 400);
+                }, restartDelay);
             };
 
             recognition.onerror = function(event) {
@@ -1279,6 +1289,7 @@
 
             await VoskEngine.startListening(
                 function onResult(text) {
+                    if (!VoskEngine.isListeningActive) return; // Stale WASM event after stopListening()
                     if (voskIgnoreResults) return; // During feedback delay — ignore
                     if (!roundActive) return;
                     setMicState(MIC_STATE.PROCESSING);
@@ -1298,6 +1309,14 @@
                     }
                 }
             );
+
+            // Guard: stopListening() may have been called during the async startup window
+            // (e.g. user pressed End Round while getUserMedia permission dialog was open).
+            // If so, the STOPPING→COOLDOWN→IDLE flow is already in progress — don't clobber it.
+            if (!roundActive || micState === MIC_STATE.STOPPING || micState === MIC_STATE.COOLDOWN || micState === MIC_STATE.IDLE) {
+                if (VoskEngine.isListeningActive) VoskEngine.stopListening(); // clean up zombie session
+                return;
+            }
 
             if (VoskEngine.isListeningActive) {
                 setMicState(MIC_STATE.LISTENING);
