@@ -932,7 +932,8 @@
                     this._processor = this._audioContext.createScriptProcessor(4096, 1, 1);
                     this._processor.onaudioprocess = (e) => {
                         if (this._recognizer) {
-                            this._recognizer.acceptWaveform(e.inputBuffer.getChannelData(0));
+                            // vosk-browser expects the AudioBuffer object, not a Float32Array
+                            this._recognizer.acceptWaveform(e.inputBuffer);
                         }
                     };
                     this._source.connect(this._processor);
@@ -946,11 +947,24 @@
 
             stopListening() {
                 this.isListeningActive = false;
-                if (this._source) { this._source.disconnect(); this._source = null; }
-                if (this._processor) { this._processor.disconnect(); this._processor = null; }
-                if (this._audioContext) { this._audioContext.close(); this._audioContext = null; }
-                if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
-                if (this._recognizer) { this._recognizer.free(); this._recognizer = null; }
+                try {
+                    if (this._source) { this._source.disconnect(); }
+                    if (this._processor) { this._processor.disconnect(); }
+                    if (this._audioContext) { this._audioContext.close(); }
+                    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); }
+                    if (this._recognizer && typeof this._recognizer.free === 'function') {
+                        this._recognizer.free(); // not present in all vosk-browser versions
+                    }
+                } catch(e) {
+                    console.warn('VoskEngine cleanup error (non-fatal):', e);
+                } finally {
+                    // Always null refs — state must be clean regardless of cleanup errors
+                    this._source = null;
+                    this._processor = null;
+                    this._audioContext = null;
+                    this._stream = null;
+                    this._recognizer = null;
+                }
             }
         };
 
