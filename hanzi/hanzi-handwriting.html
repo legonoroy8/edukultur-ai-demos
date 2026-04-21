@@ -153,7 +153,7 @@
     .subtitle {
       text-align: center;
       color: #6e6e73;
-      margin-bottom: 40px;
+      margin-bottom: 20px;
       font-size: 13px;
       font-weight: 300;
     }
@@ -407,31 +407,46 @@
       opacity: 1;
     }
     
+    /* Touch drawing fix — prevent page scroll while drawing */
+    .drawingBoard canvas {
+      touch-action: none;
+    }
+
+    .canvas-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 8px;
+      letter-spacing: 0.3px;
+    }
+
+    /* Better notification */
+    .notification {
+      font-family: var(--font-body);
+    }
+    .notification.notify-success { background: #10b981; }
+    .notification.notify-error   { background: #e74c3c; }
+
     @media (max-width: 600px) {
-      .container {
-        padding: 0;
-      }
-      
-      h1 {
-        font-size: 24px;
-      }
-      
-      .drawing-wrapper,
-      .results-wrapper {
-        padding: 20px;
-      }
-      
-      .drawingBoard {
-        height: 280px;
-      }
-      
-      .predictions {
-        gap: 12px;
-      }
-      
-      .prediction .char {
-        font-size: 44px;
-      }
+      .demo-header { padding: 0.5rem 0; margin-bottom: 0; }
+      .demo-title { font-size: 1rem; }
+      .main-container { padding: 12px; min-height: auto; }
+      .container { padding: 0; }
+      h1 { font-size: 20px; margin-bottom: 4px; }
+      .subtitle { margin-bottom: 12px; font-size: 12px; }
+      .text-display-wrapper { padding: 14px; margin-bottom: 10px; border-radius: 12px; }
+      .text-display-header { margin-bottom: 8px; }
+      .text-display { min-height: 46px; padding: 10px; font-size: 26px; }
+      .drawing-wrapper { padding: 14px; margin-bottom: 10px; border-radius: 12px; }
+      .drawingBoard { height: 230px; border-radius: 10px; }
+      .controls { margin-top: 10px; gap: 8px; }
+      .btn { padding: 11px 8px; font-size: 12px; }
+      .results-wrapper { padding: 14px; border-radius: 12px; }
+      .results-title { margin-bottom: 12px; }
+      .predictions { gap: 10px; min-height: 80px; }
+      .prediction { padding: 10px 8px; border-radius: 10px; }
+      .prediction .char { font-size: 40px; }
+      .prediction .rank { font-size: 10px; margin-bottom: 4px; }
     }
   </style>
 </head>
@@ -475,6 +490,7 @@
         <button class="btn btn-clear">Clear</button>
         <button class="btn btn-submit" id="submitBtn">Submit</button>
       </div>
+      <p class="canvas-hint">Draw one stroke at a time · Tap a result to add it</p>
     </div>
     
     <div class="results-wrapper">
@@ -546,7 +562,7 @@
         if (!isLoaded) return;
         var strokes = drawingBoard.cloneStrokes();
         if (!strokes || strokes.length === 0) {
-          showNotification('Draw a character first');
+          showNotification('✏️ Draw a character first', 'error');
           return;
         }
         var analyzedChar = new HanziLookup.AnalyzedCharacter(strokes);
@@ -561,46 +577,45 @@
       function displayResults(matches) {
         var predictionsDiv = $(".predictions");
         predictionsDiv.empty();
-        
+
         if (matches.length === 0) {
-          predictionsDiv.append('<div class="empty-state">No match found</div>');
+          predictionsDiv.append('<div class="empty-state">No match found — try drawing more strokes</div>');
           return;
         }
-        
-        // Show only the best match (first one)
-        var char = matches[0].character;
-        
-        var predictionDiv = $("<div></div>")
-          .addClass("prediction first")
-          .html('<div class="rank">BEST MATCH</div><div class="char">' + char + '</div>');
-        
-        predictionDiv.click(function() {
-          addCharacterToText(char);
+
+        var labels = ['BEST MATCH', '2ND', '3RD'];
+        matches.forEach(function(match, i) {
+          var char = match.character;
+          var div = $("<div></div>")
+            .addClass("prediction" + (i === 0 ? " first" : ""))
+            .html('<div class="rank">' + (labels[i] || (i+1)+'TH') + '</div><div class="char">' + char + '</div>');
+          div.click(function() { addCharacterToText(char); });
+          predictionsDiv.append(div);
         });
-        
-        predictionsDiv.append(predictionDiv);
       }
 
       function clearResults() {
         $(".predictions").html('<div class="empty-state">Draw a character and click Submit</div>');
       }
       
-      function showNotification(msg) {
+      function showNotification(msg, type) {
         var notification = $("#notification");
+        notification.removeClass("notify-success notify-error");
+        if (type === 'success') notification.addClass("notify-success");
+        else if (type === 'error') notification.addClass("notify-error");
         notification.text(msg).addClass("show");
-        setTimeout(function() { notification.removeClass("show"); }, 1000);
+        setTimeout(function() { notification.removeClass("show notify-success notify-error"); }, 1200);
       }
 
       function addCharacterToText(char) {
         selectedText += char;
         updateTextDisplay();
 
-        // Clear the drawing board after selecting
         drawingBoard.clearCanvas();
         drawingBoard.redraw();
         clearResults();
 
-        showNotification("Added " + char);
+        showNotification("✓ Added " + char, 'success');
       }
       
       function updateTextDisplay() {
@@ -616,7 +631,7 @@
       function clearTextDisplay() {
         selectedText = "";
         updateTextDisplay();
-        showNotification("Text cleared");
+        showNotification("Text cleared", 'success');
       }
     })();
   </script>

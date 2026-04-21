@@ -676,29 +676,104 @@
             100% { transform: scale(1); }
         }
 
+        /* === Skip tracking chips === */
+        .skipped-letters-section {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 20px;
+            margin-top: 16px;
+        }
+        .skipped-letters-section h3 {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 12px;
+        }
+        .skip-chips-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 36px;
+            align-items: center;
+        }
+        .skip-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #fff3cd;
+            border: 1.5px solid #ffc107;
+            border-radius: 20px;
+            padding: 4px 10px 4px 10px;
+            font-weight: 700;
+            color: #856404;
+        }
+        .skip-chip .chip-letter { font-size: 1em; }
+        .skip-chip .chip-count {
+            background: #ffc107;
+            color: #6b4c00;
+            border-radius: 10px;
+            padding: 0px 5px;
+            font-size: 0.75em;
+            font-weight: 700;
+        }
+        .skip-empty {
+            color: #adb5bd;
+            font-size: 0.875em;
+            font-style: italic;
+        }
+        .screenshot-callout {
+            margin-top: 14px;
+            background: rgba(99, 102, 241, 0.07);
+            border: 1.5px dashed #6366f1;
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875em;
+            color: #4b4b6b;
+        }
+        .screenshot-callout .sc-icon { font-size: 1.3em; flex-shrink: 0; }
+        .screenshot-callout strong { color: #6366f1; }
+
         @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 2.2em;
-            }
-            
-            .letter-box {
-                width: 50px;
-                height: 50px;
-                font-size: 1.4em;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            button {
-                min-width: 200px;
-            }
+            .container { padding: 10px; }
+            h1 { font-size: 2.2em; }
+            .letter-box { width: 50px; height: 50px; font-size: 1.4em; }
+            .controls { flex-direction: column; align-items: center; }
+            button { min-width: 200px; }
+        }
+
+        /* === Compact mobile layout (375px) === */
+        @media (max-width: 480px) {
+            .demo-header { padding: 0.5rem 0; margin-bottom: 0; }
+            .demo-title { font-size: 1rem; }
+            .back-btn { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+            .header { padding: 10px 0 6px; margin-bottom: 0; }
+            .header h1 { display: none; }
+            .header .subtitle { display: none; }
+            .question-section { padding: 16px 16px 12px; }
+            .question { font-size: 1em; margin-bottom: 6px; }
+            .answer { font-size: 2.6em; margin: 8px 0; }
+            .progress { font-size: 0.875em; margin: 8px 0; }
+            .progress-bar { margin: 8px 0; height: 6px; }
+            .controls-section { padding: 12px 16px; }
+            .controls { gap: 8px; margin-bottom: 10px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+            .controls button { min-width: 0; padding: 9px 14px; font-size: 0.85em; }
+            .utility-controls { gap: 8px; margin-bottom: 12px; }
+            .utility-controls button { padding: 7px 12px; }
+            .status { padding: 10px 14px; margin: 8px 0; font-size: 0.875em; }
+            .stats-section { padding: 12px 14px; margin-top: 10px; border-radius: 14px; }
+            .stats-section > h3 { font-size: 0.875em; margin-bottom: 0; }
+            .stats-grid { grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 8px; }
+            .stat-item { padding: 8px 4px; border-radius: 8px; }
+            .stat-value { font-size: 1.3em; }
+            .stat-label { font-size: 0.65em; margin-top: 2px; }
+            .skipped-letters-section { padding: 12px 14px; margin-top: 10px; border-radius: 14px; }
+            .skipped-letters-section h3 { font-size: 0.875em; margin-bottom: 8px; }
+            .instructions { padding: 14px; margin-top: 12px; }
+            #skipSuggestion { margin-top: 10px; padding: 12px 14px; }
         }
     </style>
     <!-- vosk-browser: WASM speech recognition engine -->
@@ -761,7 +836,7 @@
         </div>
 
         <div class="stats-section">
-            <h3>📊 Practice Statistics</h3>
+            <h3 style="font-size:0.95em;font-weight:600;color:#495057;">📊 Practice Statistics</h3>
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-value" id="lettersCompleted">0</div>
@@ -798,6 +873,18 @@
                     <li>Track your accuracy and maintain your streak</li>
                 </ul>
             </div>
+
+        <!-- Skipped letters tracking + screenshot instruction -->
+        <div class="skipped-letters-section" id="skippedLettersSection">
+            <h3>⏭️ Skipped Letters</h3>
+            <div class="skip-chips-grid" id="skipChipsGrid">
+                <span class="skip-empty">No skipped letters yet</span>
+            </div>
+            <div class="screenshot-callout">
+                <span class="sc-icon">📸</span>
+                <span>Screenshot this section and send to <strong>Taktis AI Team</strong> to submit your testing results.</span>
+            </div>
+        </div>
 
         <div class="alert alert-warning" id="browserSupport" style="display:none;">
             <strong>⚠️ Browser Not Supported</strong><br>
@@ -871,6 +958,31 @@
         let suggestedLetters = [];
         let lastHeardInput = '';
         let voskIgnoreResults = false; // true during feedback delays — prevents double-recognition
+
+        // Per-letter skip tracking (resets per session — not persisted)
+        let skippedLetters = {};
+
+        // Feedback message pools
+        const correctMessages = ['✅ Correct!', '✅ Fantastic!', '✅ Perfect!', '✅ Nailed it!', '✅ Excellent!', '✅ Well done!', '✅ Great job!'];
+        const tryAgainMessages = ['❌ Try again!', '❌ Not quite!', '❌ Almost!', '❌ Keep going!', '❌ One more time!'];
+        function randomMsg(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+        function recordSkip(letter) {
+            skippedLetters[letter] = (skippedLetters[letter] || 0) + 1;
+            renderSkippedLetters();
+        }
+
+        function renderSkippedLetters() {
+            const grid = document.getElementById('skipChipsGrid');
+            const letters = Object.keys(skippedLetters).sort();
+            if (letters.length === 0) {
+                grid.innerHTML = '<span class="skip-empty">No skipped letters yet</span>';
+                return;
+            }
+            grid.innerHTML = letters.map(l =>
+                `<span class="skip-chip"><span class="chip-letter">${l}</span><span class="chip-count">×${skippedLetters[l]}</span></span>`
+            ).join('');
+        }
 
         // ── VoskEngine ────────────────────────────────────────────────────────────
         const VoskEngine = {
@@ -1632,13 +1744,13 @@
                 stats.currentStreak++;
                 attemptCount = 0;
                 hideSkipSuggestion();
-                updateStatus('success', `✅ Perfect! "${spokenLetter}" is correct.`);
+                updateStatus('success', randomMsg(correctMessages));
                 voskIgnoreResults = true;
-                setTimeout(() => { voskIgnoreResults = false; nextLetter(); }, 1500);
+                setTimeout(() => { voskIgnoreResults = false; nextLetter(); }, 1200);
             } else {
                 stats.currentStreak = 0;
                 attemptCount++;
-                updateStatus('error', `❌ Heard "${spokenLetter}" — expected "${expectedLetter}". Try again!`);
+                updateStatus('error', `${randomMsg(tryAgainMessages)} (heard "${spokenLetter}", need "${expectedLetter}")`);
                 voskIgnoreResults = true;
                 setTimeout(() => { voskIgnoreResults = false; }, 800);
                 if (attemptCount >= 3) {
@@ -1669,11 +1781,13 @@
         function markAndSkip() {
             voskIgnoreResults = false;
             hideSkipSuggestion();
+            const letter = currentLetter.letter;
+            recordSkip(letter);
             stats.flaggedLetters = (stats.flaggedLetters || 0) + 1;
             saveStats();
             updateStatsDisplay();
-            updateStatus('success', `⏭️ "${currentLetter.letter}" marked for review. Moving to next letter.`);
-            setTimeout(() => { nextLetter(); }, 1200);
+            updateStatus('success', `⏭️ "${letter}" skipped — noted for review.`);
+            setTimeout(() => { nextLetter(); }, 900);
         }
         
         function nextLetter() {
@@ -1703,8 +1817,13 @@
         
         function skipLetter() {
             voskIgnoreResults = false;
-            updateStatus('success', `⏭️ Skipped letter "${currentLetter.letter}"`);
-            nextLetter();
+            const letter = currentLetter.letter;
+            recordSkip(letter);
+            stats.flaggedLetters = (stats.flaggedLetters || 0) + 1;
+            saveStats();
+            updateStatsDisplay();
+            updateStatus('success', `⏭️ "${letter}" skipped — noted for review.`);
+            setTimeout(() => { nextLetter(); }, 900);
         }
         
         function repeatLetter() {
