@@ -891,7 +891,10 @@
                         return false;
                     }
                     if (typeof Vosk.setLogLevel === 'function') Vosk.setLogLevel(-1);
-                    this._model = await Vosk.createModel('./models/vosk-model-small-en-us-0.15.tar.gz');
+                    // Build absolute URL — vosk-browser Worker resolves relative paths from
+                    // the page origin root, not the page path, so './models/...' would 404.
+                    const modelUrl = new URL('./models/vosk-model-small-en-us-0.15.tar.gz', location.href).href;
+                    this._model = await Vosk.createModel(modelUrl);
                     this.isReady = true;
                     console.log('VoskEngine: model loaded successfully');
                     return true;
